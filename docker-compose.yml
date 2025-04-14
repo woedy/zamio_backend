@@ -1,0 +1,72 @@
+version: "3.8"
+
+services:
+  # Redis
+  redis:
+    image: redis:alpine
+    container_name: god_bless_redis
+
+  # Database Postgres
+  db:
+    image: postgres
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=god_bless_postgres
+      - POSTGRES_USER=god_bless_postgres
+      - POSTGRES_PASSWORD=god_bless_postgres
+    container_name: god_bless_postgres_db
+
+  # Django Application
+  god_bless_app:
+    build:
+      context: .
+    volumes:
+      - .:/god_bless_django
+      - ./static_cdn:/var/lib/static_cdn
+    ports:
+      - 6161:6161
+    container_name: god_bless_app
+    command: python manage.py runserver 0.0.0.0:6161
+    depends_on:
+      - db
+
+  # React Application
+  god_bless_frontend:
+    build:
+      context: ../god_bless_frontend  # Adjust the path to your React app
+    ports:
+      - "4173:4173"  # Map to the host's port
+    environment:
+      - REACT_APP_API_URL=http://god_bless_app:6161  # API URL for Django service
+
+  # Celery Worker
+  celery:
+    restart: always
+    build:
+      context: .
+    command: celery -A god_bless_pro worker -l DEBUG
+    volumes:
+      - .:/god_bless_django
+    container_name: god_bless_celery
+    depends_on:
+      - db
+      - redis
+      - god_bless_app
+
+  # Celery Beat
+  celery-beat:
+    restart: always
+    build:
+      context: .
+    command: celery -A god_bless_pro beat -l DEBUG
+    volumes:
+      - .:/god_bless_django
+    container_name: god_bless_celery_beat
+    depends_on:
+      - db
+      - redis
+      - god_bless_app
+
+volumes:
+  static_cdn:
