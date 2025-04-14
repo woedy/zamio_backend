@@ -26,6 +26,14 @@ def fingerprint(channel_samples: List[int], Fs: int = settings.DEFAULT_FS, wsize
     # Generate and return hashes
     return generate_hashes(local_maxima, fan_value=fan_value)
 
+
+
+
+
+
+
+
+
 def get_2D_peaks(arr2D: np.array, plot: bool = False, amp_min: int = settings.DEFAULT_AMP_MIN) -> List[Tuple[int, int]]:
     """
     Extract maximum peaks from the spectrogram matrix (arr2D).
@@ -61,6 +69,14 @@ def get_2D_peaks(arr2D: np.array, plot: bool = False, amp_min: int = settings.DE
         plt.show()
 
     return list(zip(freqs_filter, times_filter))
+
+
+
+
+
+
+
+
 
 def generate_hashes(peaks: List[Tuple[int, int]], fan_value: int = settings.DEFAULT_FAN_VALUE) -> List[Tuple[str, int]]:
     """

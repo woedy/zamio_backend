@@ -189,30 +189,6 @@ CORS_ALLOW_CREDENTIALS = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
-DEJAVU_CONFIG = {
-    "database": {
-        "host": "localhost",
-        "user": "root",
-        "passwd": "your_password",
-        "db": "dejavu_db"
-    }
-}
-
-
-# settings.py
-
-DEFAULT_FS = 44100  # Sample rate, commonly 44100Hz
-DEFAULT_WINDOW_SIZE = 4096  # FFT window size
-DEFAULT_OVERLAP_RATIO = 0.5  # Overlap ratio for spectrograms
-DEFAULT_FAN_VALUE = 15  # Number of peaks to consider for pairing
-DEFAULT_AMP_MIN = 10  # Minimum amplitude for peaks
-MIN_HASH_TIME_DELTA = 0  # Minimum delta for hash generation
-MAX_HASH_TIME_DELTA = 200  # Maximum delta for hash generation
-FINGERPRINT_REDUCTION = 20  # Size of the hash (first N characters)
-PEAK_SORT = True  # Whether to sort peaks before hashing
-CONNECTIVITY_MASK = 2  # Mask used for peak neighborhood
-PEAK_NEIGHBORHOOD_SIZE = 2  # Size of the neighborhood for peak detection
-
 
 
 DEFAULT_FS = 44100  # Sample rate, commonly 44100Hz

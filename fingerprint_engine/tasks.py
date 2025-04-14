@@ -2,8 +2,9 @@ import os
 import subprocess
 import uuid
 
+from fingerprint_engine.engine import fingerprint
+
 from .models import Song, Fingerprint
-from .engine import fingerprint
 
 def generate_fingerprints_for_song(song_id):
     # Fetch the uploaded song
