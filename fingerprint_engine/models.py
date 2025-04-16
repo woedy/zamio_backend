@@ -22,3 +22,8 @@ class Fingerprint(models.Model):
             models.Index(fields=['hash', 'song_id'])
         ]
         unique_together = ('song', 'offset', 'hash')
+
+
+
+
+        
