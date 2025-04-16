@@ -202,3 +202,25 @@ FINGERPRINT_REDUCTION = 32  # Size of the hash (first N characters)
 PEAK_SORT = True  # Whether to sort peaks before hashing
 CONNECTIVITY_MASK = 2  # Mask used for peak neighborhood
 PEAK_NEIGHBORHOOD_SIZE = 2  # Size of the neighborhood for peak detection
+
+
+
+
+
+
+#### GROK
+# DEFAULT_FS = 44100
+# DEFAULT_WINDOW_SIZE = 2048
+# DEFAULT_OVERLAP_RATIO = 0.5
+# DEFAULT_FAN_VALUE = 15
+# DEFAULT_AMP_MIN = 10
+# PEAK_NEIGHBORHOOD_SIZE = 20
+# MIN_HASH_TIME_DELTA = 1
+# MAX_HASH_TIME_DELTA = 200
+# FINGERPRINT_REDUCTION = 20
+# PEAK_SORT = True
+# CONNECTIVITY_MASK = 2  # Used in original but not in numba version
+
+
+
+

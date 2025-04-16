@@ -21,3 +21,4 @@ dejavu
 
 
 numpy scipy pydub audioread matplotlib librosa
+librosa numba xxhash
