@@ -24,6 +24,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     path('api/monitor/', include('music_monitor22.urls', 'music_monitor22_api')),
+    path('api/accounts/', include('accounts.api.urls', 'accounts_api')),
+    path('api/artists/', include('artists.urls', 'artists_api')),
 
 ]
 if settings.DEBUG:

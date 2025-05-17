@@ -1,1 +1,4 @@
 python manage.py fingerprint_tracks
+
+ffmpeg -i song1.mp3 -ss 30 -t 10 -c:a pcm_s16le clip1.wav
+ffmpeg -i ./audio/song1.mp3 ./audio/song1.wav

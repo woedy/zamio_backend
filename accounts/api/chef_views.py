@@ -12,12 +12,10 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.api.password_views import check_email_exist
 from accounts.api.serializers import UserRegistrationSerializer
 from activities.models import AllActivity
 from bank_account.models import BankAccount
-from chef.models import ChefProfile
-from weekend_chef_project.utils import convert_phone_number, generate_email_token
+from core.utils import generate_email_token, is_valid_password
 
 User = get_user_model()
 
@@ -290,7 +288,7 @@ class ChefLogin(APIView):
 @api_view(['POST', ])
 @permission_classes([])
 @authentication_classes([])
-def verify_chef_email(request):
+def verify_email(request):
     payload = {}
     data = {}
     errors = {}
@@ -363,7 +361,7 @@ def verify_chef_email(request):
 @api_view(['POST', ])
 @permission_classes([AllowAny])
 @authentication_classes([])
-def resend_chef_email_verification(request):
+def resend_email_verification(request):
     payload = {}
     data = {}
     errors = {}
@@ -464,53 +462,6 @@ def resend_chef_email_verification(request):
 
     return Response(payload, status=status.HTTP_200_OK)
 
-
-
-def check_password(email, password):
-
-    try:
-        user = User.objects.get(email=email)
-        return user.check_password(password)
-    except User.DoesNotExist:
-        return False
-
-
-
-
-
-def is_valid_email(email):
-    # Regular expression pattern for basic email validation
-    pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
-
-    # Using re.match to check if the email matches the pattern
-    if re.match(pattern, email):
-        return True
-    else:
-        return False
-
-
-def is_valid_password(password):
-    # Check for at least 8 characters
-    if len(password) < 8:
-        return False
-
-    # Check for at least one uppercase letter
-    if not re.search(r'[A-Z]', password):
-        return False
-
-    # Check for at least one lowercase letter
-    if not re.search(r'[a-z]', password):
-        return False
-
-    # Check for at least one digit
-    if not re.search(r'[0-9]', password):
-        return False
-
-    # Check for at least one special character
-    if not re.search(r'[-!@#\$%^&*_()-+=/.,<>?"~`£{}|:;]', password):
-        return False
-
-    return True
 
 
 

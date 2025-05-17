@@ -1,0 +1,6 @@
+Hello {{ first_name }},
+
+Your OPT code to reset password is {{otp_code}}
+
+Thank you,
+ZamIO

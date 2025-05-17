@@ -21,16 +21,16 @@ class Station(models.Model):
     about = models.TextField(blank=True, null=True)
 
 
-
     location_name = models.CharField(max_length=200, null=True, blank=True)
     lat = models.DecimalField(default=0.0, max_digits=50, decimal_places=20, null=True, blank=True)
     lng = models.DecimalField(default=0.0, max_digits=50, decimal_places=20, null=True, blank=True)
 
-    active = models.BooleanField(default=True)
+        
     is_archived = models.BooleanField(default=False)
-
+    active = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
 
     def __str__(self):
         return self.name
@@ -42,13 +42,12 @@ class StationProgram(models.Model):
     program_name = models.CharField(max_length=100)
     description = models.TextField(null=True, blank=True)
 
+    station = models.ForeignKey(Station, on_delete=models.CASCADE, related_name='station_programs')
+        
     is_archived = models.BooleanField(default=False)
     active = models.BooleanField(default=False)
-    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    station = models.ForeignKey(Station, on_delete=models.CASCADE, related_name='station_programs')
 
     def __str__(self):
         return self.program_name
@@ -62,6 +61,7 @@ ROLE_CHOICES = [
 
 
 class ProgramStaff(models.Model):
+    station_program = models.ForeignKey(StationProgram, on_delete=models.CASCADE, related_name='station_programs')
     name = models.CharField(max_length=100)
     role = models.CharField(max_length=50, choices=ROLE_CHOICES)
 
@@ -71,7 +71,6 @@ class ProgramStaff(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    station_program = models.ForeignKey(StationProgram, on_delete=models.CASCADE, related_name='station_programs')
 
     def __str__(self):
         return self.name

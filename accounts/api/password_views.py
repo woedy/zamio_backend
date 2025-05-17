@@ -18,9 +18,7 @@ from rest_framework.views import APIView
 from accounts.api.serializers import UserRegistrationSerializer, PasswordResetSerializer
 from activities.models import AllActivity
 from bank_account.models import BankAccount
-from clients.models import Client
-from week_admin.models import WeekendChefAdmin
-from weekend_chef_project.utils import convert_phone_number, generate_email_token, generate_random_otp_code
+from core.utils import generate_random_otp_code
 
 User = get_user_model()
 
@@ -305,17 +303,6 @@ def new_password_reset_view(request):
 
 
 
-
-
-
-
-def check_email_exist(email):
-
-    qs = User.objects.filter(email=email)
-    if qs.exists():
-        return True
-    else:
-        return False
 
 
 def is_valid_email(email):

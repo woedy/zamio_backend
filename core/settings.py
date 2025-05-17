@@ -58,12 +58,16 @@ INSTALLED_APPS = [
     "corsheaders",
 
     "accounts",
+    "activities",
     "artists",
+    "bank_account",
+    "mr_admin",
     "stations",
     "music_monitor22",
     "fingerprint_engine"
 
 ]
+
 
 AUTH_USER_MODEL = "accounts.User"
 

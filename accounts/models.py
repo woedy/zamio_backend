@@ -10,6 +10,7 @@ from rest_framework.authtoken.models import Token
 
 from core.utils import unique_user_id_generator
 
+
 def get_default_profile_image():
     return "defaults/default_profile_image.png"
 
@@ -103,7 +104,10 @@ class User(AbstractBaseUser):
     username = models.CharField(max_length=255, blank=True, null=True, unique=True)
     first_name = models.CharField(max_length=255, blank=True, null=True)
     last_name = models.CharField(max_length=255, blank=True, null=True)
+    photo = models.ImageField(upload_to=upload_image_path, null=True, blank=True, default=get_default_profile_image)
 
+    country = models.CharField(max_length=255, null=True, blank=True)
+    phone = models.CharField(max_length=255, null=True, blank=True)
 
     user_type = models.CharField(max_length=100, choices=USER_TYPE, blank=True, null=True)
     

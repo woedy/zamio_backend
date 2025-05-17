@@ -8,13 +8,8 @@ from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 
-from accounts.api.client_views import check_password, is_valid_email, is_valid_password
-from accounts.api.password_views import check_email_exist
 from accounts.api.serializers import UserRegistrationSerializer
 from activities.models import AllActivity
-from bank_account.models import BankAccount
-from week_admin.models import WeekendChefAdmin
-from weekend_chef_project.utils import generate_email_token
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model, authenticate
 
@@ -23,8 +18,8 @@ from rest_framework.views import APIView
 
 from accounts.api.serializers import UserRegistrationSerializer
 from activities.models import AllActivity
-from bank_account.models import BankAccount
-from weekend_chef_project.utils import generate_email_token
+from core.utils import generate_email_token, is_valid_email, is_valid_password
+from mr_admin.models import MrAdmin
 
 
 User = get_user_model()
@@ -34,7 +29,7 @@ User = get_user_model()
 @api_view(['POST', ])
 @permission_classes([])
 @authentication_classes([])
-def register_weekend_chef_admin(request):
+def register_admin_view(request):
 
     payload = {}
     data = {}
@@ -100,21 +95,17 @@ def register_weekend_chef_admin(request):
             user.user_type = "Admin"
             user.save()
 
-            admin_profile = WeekendChefAdmin.objects.create(
+            admin_profile = MrAdmin.objects.create(
                 user=user
 
             )
             admin_profile.save()
 
-            new_bank_account = BankAccount.objects.create(
-                user=user,
-
-            )
+       
 
             data['phone'] = user.phone
             data['country'] = user.country
             data['photo'] = user.photo.url
-            data['account_id'] = new_bank_account.account_id
 
         token = Token.objects.get(user=user).key
         data['token'] = token
@@ -171,6 +162,18 @@ def register_weekend_chef_admin(request):
         payload['data'] = data
 
     return Response(payload)
+
+
+
+
+
+def check_email_exist(email):
+
+    qs = User.objects.filter(email=email)
+    if qs.exists():
+        return True
+    else:
+        return False
 
 
 class AdminLogin(APIView):
@@ -255,3 +258,10 @@ class AdminLogin(APIView):
 
         return Response(payload, status=status.HTTP_200_OK)
 
+def check_password(email, password):
+
+    try:
+        user = User.objects.get(email=email)
+        return user.check_password(password)
+    except User.DoesNotExist:
+        return False
