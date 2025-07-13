@@ -217,9 +217,15 @@ class ArtistLogin(APIView):
         user = authenticate(email=email, password=password)
 
 
+        
+        try:
+            artist = Artist.objects.get(user__email=email)
+        except:
+            errors['email'] = ['User is not an Artist']
+
+
         if not user:
             errors['email'] = ['Invalid Credentials']
-
 
 
         if errors:
@@ -238,6 +244,7 @@ class ArtistLogin(APIView):
 
 
         data["user_id"] = user.user_id
+        data["artist_id"] = artist.artist_id
         data["email"] = user.email
         data["first_name"] = user.first_name
         data["last_name"] = user.last_name

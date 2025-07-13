@@ -5,7 +5,7 @@ from artists.views.artist_views import add_artist, archive_artist, edit_artist, 
 from artists.views.contributions_views import add_contributor, archive_contributor, delete_contributor, edit_contributor, get_all_archived_contributors_view, get_all_contributors_view, get_contributor_details_view, unarchive_contributor
 from artists.views.genre_views import add_genre, archive_genre, delete_genre, edit_genre, get_all_archived_genres_view, get_all_genres_view, unarchive_genre
 from artists.views.platforms_views import add_platform_availability, delete_platform_availability, get_all_platform_availability_view, get_platform_availability_details_view
-from artists.views.tracks_views import add_track, archive_track, delete_track, edit_track, get_all_archived_tracks_view, get_all_tracks_view, get_track_details_view, unarchive_track
+from artists.views.tracks_views import add_track, archive_track, delete_track, edit_track, get_all_archived_tracks_view, get_all_tracks_view, get_edit_track_support_data_view, get_track_details_view, get_upload_track_support_data_view, unarchive_track, upload_track_cover_view
 
 app_name = "artists"
 
@@ -43,6 +43,8 @@ urlpatterns = [
 # 
     # # 🎵 Tracks
     path('add-track/', add_track, name='add_track'),
+    path('get-upload-track-support-data/', get_upload_track_support_data_view, name='get_upload_track_support_data_view'),
+    path('get-edit-track-support-data/', get_edit_track_support_data_view, name='get_edit_track_support_data_view'),
     path('get-all-tracks/', get_all_tracks_view, name='get_all_tracks'),
     path('get-track-details/', get_track_details_view, name='get_track_details'),
     path('edit-track/', edit_track, name='edit_track'),
@@ -50,6 +52,7 @@ urlpatterns = [
     path('unarchive-track/', unarchive_track, name='unarchive_track'),
     path('delete-track/', delete_track, name='delete_track'),
     path('get-all-archived-tracks/', get_all_archived_tracks_view, name='archived_tracks'),
+    path('upload-track-coverart/', upload_track_cover_view, name='upload_track_cover_view'),
 # 
     # # 👥 Contributors
     path('add-contributor/', add_contributor, name='add_contributor'),

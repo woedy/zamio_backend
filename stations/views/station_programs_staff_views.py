@@ -6,13 +6,13 @@ from django.db.models import Q
 
 from ..models import ProgramStaff, StationProgram
 from ..serializers import ProgramStaffSerializer, ProgramStaffDetailsSerializer
-from core.authentication import CustomJWTAuthentication
+from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def add_program_staff(request):
     payload = {}
     data = {}
@@ -20,7 +20,7 @@ def add_program_staff(request):
 
     name = request.data.get('name', '')
     role = request.data.get('role', '')
-    station_program_id = request.data.get('station_program_id', '')
+    station_program_id = request.data.get('program_id', '')
 
     if not name:
         errors['name'] = ['Name is required.']
@@ -56,7 +56,7 @@ def add_program_staff(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def get_all_program_staff_view(request):
     payload = {}
     data = {}
@@ -100,7 +100,7 @@ def get_all_program_staff_view(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def get_program_staff_details_view(request):
     payload = {}
     errors = {}
@@ -130,7 +130,7 @@ def get_program_staff_details_view(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def edit_program_staff(request):
     payload = {}
     errors = {}
@@ -173,7 +173,7 @@ def edit_program_staff(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def archive_program_staff(request):
     payload = {}
     errors = {}
@@ -202,7 +202,7 @@ def archive_program_staff(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def unarchive_program_staff(request):
     payload = {}
     errors = {}
@@ -231,7 +231,7 @@ def unarchive_program_staff(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def delete_program_staff(request):
     payload = {}
     errors = {}
@@ -259,7 +259,7 @@ def delete_program_staff(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def get_all_archived_program_staff_view(request):
     payload = {}
     data = {}

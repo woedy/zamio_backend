@@ -66,6 +66,40 @@ def unique_artist_id_generator(instance):
         return None
     return artist_id
 
+
+def unique_fun_id_generator(instance):
+    """
+    This is for a fun_id field
+    :param instance:
+    :return:
+    """
+    size = random.randint(5, 10)
+    fun_id = "FU-" + random_string_generator(size=size, chars=string.ascii_uppercase + string.digits) + "-N"
+
+    Klass = instance.__class__
+    qs_exists = Klass.objects.filter(fun_id=fun_id).exists()
+    if qs_exists:
+        return None
+    return fun_id
+
+
+def unique_station_id_generator(instance):
+    """
+    This is for a station_id field
+    :param instance:
+    :return:
+    """
+    size = random.randint(5, 10)
+    station_id = "ST-" + random_string_generator(size=size, chars=string.ascii_uppercase + string.digits) + "-ON"
+
+    Klass = instance.__class__
+    qs_exists = Klass.objects.filter(station_id=station_id).exists()
+    if qs_exists:
+        return None
+    return station_id
+
+
+
 def unique_track_id_generator(instance):
     """
     This is for a track_id field
@@ -80,6 +114,21 @@ def unique_track_id_generator(instance):
     if qs_exists:
         return None
     return track_id
+
+def unique_contributor_id_generator(instance):
+    """
+    This is for a contributor_id field
+    :param instance:
+    :return:
+    """
+    size = random.randint(5, 10)
+    contributor_id = "CNT-" + random_string_generator(size=size, chars=string.ascii_uppercase + string.digits) + "-BT"
+
+    Klass = instance.__class__
+    qs_exists = Klass.objects.filter(contributor_id=contributor_id).exists()
+    if qs_exists:
+        return None
+    return contributor_id
 
 
 def generate_email_token():
@@ -156,3 +205,19 @@ def unique_account_id_generator(instance):
     if qs_exists:
         return None
     return account_id
+
+
+def unique_transaction_id_generator(instance):
+    """
+    This is for a transaction_id field
+    :param instance:
+    :return:
+    """
+    size = random.randint(5, 7)
+    transaction_id = "TR-" + random_string_generator(size=size, chars=string.ascii_uppercase + string.digits) + "-(ION)"
+
+    Klass = instance.__class__
+    qs_exists = Klass.objects.filter(transaction_id=transaction_id).exists()
+    if qs_exists:
+        return None
+    return transaction_id

@@ -1,34 +1,40 @@
 from django.urls import path
+
+from stations.views.station_programs_staff_views import add_program_staff, archive_program_staff, delete_program_staff, edit_program_staff, get_all_archived_program_staff_view, get_all_program_staff_view, get_program_staff_details_view, unarchive_program_staff
+from stations.views.station_programs_views import add_station_program, archive_station_program, delete_station_program, edit_station_program, get_all_archived_station_programs_view, get_all_station_programs_view, get_station_program_details_view, unarchive_station_program
+from stations.views.station_views import archive_station, edit_station, get_all_archived_stations_view, get_all_stations_view, get_station_details_view, unarchive_station
 from . import views
+
+app_name = "stations"
 
 urlpatterns = [
     # Station URLs
-    path('stations/add/', views.add_station, name='add_station'),
-    path('stations/all/', views.get_all_stations_view, name='get_all_stations'),
-    path('stations/details/', views.get_station_details_view, name='get_station_details'),
-    path('stations/edit/', views.edit_station, name='edit_station'),
-    path('stations/archive/', views.archive_station, name='archive_station'),
-    path('stations/unarchive/', views.unarchive_station, name='unarchive_station'),
-    path('stations/delete/', views.delete_station, name='delete_station'),
-    path('stations/archived/', views.get_all_archived_stations_view, name='get_all_archived_stations'),
-
-    # StationProgram URLs
-    path('station-programs/add/', views.add_station_program, name='add_station_program'),
-    path('station-programs/all/', views.get_all_station_programs_view, name='get_all_station_programs'),
-    path('station-programs/details/', views.get_station_program_details_view, name='get_station_program_details'),
-    path('station-programs/edit/', views.edit_station_program, name='edit_station_program'),
-    path('station-programs/archive/', views.archive_station_program, name='archive_station_program'),
-    path('station-programs/unarchive/', views.unarchive_station_program, name='unarchive_station_program'),
-    path('station-programs/delete/', views.delete_station_program, name='delete_station_program'),
-    path('station-programs/archived/', views.get_all_archived_station_programs_view, name='get_all_archived_station_programs'),
-
-    # ProgramStaff URLs
-    path('program-staff/add/', views.add_program_staff, name='add_program_staff'),
-    path('program-staff/all/', views.get_all_program_staff_view, name='get_all_program_staff'),
-    path('program-staff/details/', views.get_program_staff_details_view, name='get_program_staff_details'),
-    path('program-staff/edit/', views.edit_program_staff, name='edit_program_staff'),
-    path('program-staff/archive/', views.archive_program_staff, name='archive_program_staff'),
-    path('program-staff/unarchive/', views.unarchive_program_staff, name='unarchive_program_staff'),
-    path('program-staff/delete/', views.delete_program_staff, name='delete_program_staff'),
-    path('program-staff/archived/', views.get_all_archived_program_staff_view, name='get_all_archived_program_staff'),
+    # path('add/', add_station, name='add_station'),
+    path('get-all-stations/', get_all_stations_view, name='get_all_stations'),
+    path('get-station-details/', get_station_details_view, name='get_station_details'),
+    path('edit-station/', edit_station, name='edit_station'),
+    path('archive-station/', archive_station, name='archive_station'),
+    path('unarchive-station/', unarchive_station, name='unarchive_station'),
+    # path('delete/', delete_station, name='delete_station'),
+    path('get-all-archived-stations/', get_all_archived_stations_view, name='get_all_archived_stations'),
+# 
+    # # StationProgram URLs
+    path('add-station-program/', add_station_program, name='add_station_program'),
+    path('get-all-station-programs/', get_all_station_programs_view, name='get_all_station_programs'),
+    path('get-station-program-details/', get_station_program_details_view, name='get_station_program_details'),
+    path('edit-station-program/', edit_station_program, name='edit_station_program'),
+    path('archive-station-program/', archive_station_program, name='archive_station_program'),
+    path('unarchive-station-program/', unarchive_station_program, name='unarchive_station_program'),
+    path('delete-station-program/', delete_station_program, name='delete_station_program'),
+    path('get-all-archived-station-programs/', get_all_archived_station_programs_view, name='get_all_archived_station_programs'),
+# 
+    # # ProgramStaff URLs
+    path('add-program-staff/', add_program_staff, name='add_program_staff'),
+    path('get-all-program-staffs/', get_all_program_staff_view, name='get_all_program_staff'),
+    path('get-program-staff-details/', get_program_staff_details_view, name='get_program_staff_details'),
+    path('edit-program-staff/', edit_program_staff, name='edit_program_staff'),
+    path('archive-program-staff/', archive_program_staff, name='archive_program_staff'),
+    path('unarchive-program-staff/', unarchive_program_staff, name='unarchive_program_staff'),
+    path('delete-program-staff/', delete_program_staff, name='delete_program_staff'),
+    path('get-all-archived-program-staff/', get_all_archived_program_staff_view, name='get_all_archived_program_staff'),
 ]

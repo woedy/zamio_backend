@@ -1,0 +1,47 @@
+How to fix it
+Option 1: Use WSL IP Address in CELERY_BROKER_URL
+Find your WSL IP address:
+
+Open a WSL terminal and run:
+
+bash
+Copy
+Edit
+hostname -I
+Or:
+
+bash
+Copy
+Edit
+ip addr show eth0
+This gives you an IP like 172.20.x.x.
+
+Use that IP in your Django settings for Celery broker URL:
+
+python
+Copy
+Edit
+CELERY_BROKER_URL = 'redis://172.20.x.x:6379/0'
+Make sure Redis is configured to listen on that IP (or on all interfaces):
+
+Edit your Redis config /etc/redis/redis.conf and look for:
+
+conf
+Copy
+Edit
+bind 0.0.0.0
+or add it if not present. Then restart Redis:
+
+bash
+Copy
+Edit
+sudo service redis-server restart
+Test from Windows command line:
+
+powershell
+Copy
+Edit
+redis-cli -h 172.20.x.x ping
+
+
+celery -A core beat --loglevel=info          

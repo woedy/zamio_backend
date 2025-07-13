@@ -23,9 +23,12 @@ from core import settings
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    path('api/monitor/', include('music_monitor22.urls', 'music_monitor22_api')),
+    #path('api/monitor/', include('music_monitor22.urls', 'music_monitor22_api')),
     path('api/accounts/', include('accounts.api.urls', 'accounts_api')),
     path('api/artists/', include('artists.urls', 'artists_api')),
+    path('api/stations/', include('stations.urls', 'stations_api')),
+    path('api/fun/', include('fun.urls', 'fun_api')),
+    path('api/music-monitor/', include('music_monitor.urls', 'music_monitor_api')),
 
 ]
 if settings.DEBUG:

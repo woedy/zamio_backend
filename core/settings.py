@@ -21,14 +21,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-wg=khcu9^_pyr8j675w94-^6bd_8g-1i#t((1=i#2zer645d9&'
+SECRET_KEY = "django-insecure-wg=khcu9^_pyr8j675w94-^6bd_8g-1i#t((1=i#2zer645d9&"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+#EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+#EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND = "django.core.mail.backends.filebased.EmailBackend"
+EMAIL_FILE_PATH = BASE_DIR / "sent_emails"
+
+
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_HOST_USER = "etornamasamoah@gmail.com"
 EMAIL_HOST_PASSWORD = "nygmdsnhaxxlrsem"
@@ -40,19 +45,18 @@ DEFAULT_FROM_EMAIL = "Zamio <zamio@gmail.com>"
 BASE_URL = "0.0.0.0:80"
 
 
-
 # Application definition
 
 INSTALLED_APPS = [
-        "daphne",
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
+    "daphne",
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
 
-        "channels",
+    "channels",
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
@@ -63,9 +67,9 @@ INSTALLED_APPS = [
     "bank_account",
     "mr_admin",
     "stations",
-    "music_monitor22",
-    "fingerprint_engine"
-
+    "music_monitor",
+    "streamer",
+    "fun"
 ]
 
 
@@ -73,37 +77,36 @@ AUTH_USER_MODEL = "accounts.User"
 
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-
-        'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.common.CommonMiddleware',
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.common.CommonMiddleware",
 ]
 
-ROOT_URLCONF = 'core.urls'
+ROOT_URLCONF = "core.urls"
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [os.path.join(BASE_DIR, "templates")],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
+WSGI_APPLICATION = "core.wsgi.application"
 ASGI_APPLICATION = "core.asgi.application"
 
 
@@ -111,9 +114,9 @@ ASGI_APPLICATION = "core.asgi.application"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
 }
 
@@ -123,16 +126,16 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
 
@@ -140,9 +143,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
@@ -152,7 +155,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = "static/"
 
 
 STATIC_ROOT = os.path.join(BASE_DIR, "static_cdn", "static_root")  # For static files
@@ -163,9 +166,11 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # Separate media files
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-CELERY_BROKER_URL = "redis://redis:6379"
-CELERY_RESULT_BACKEND = "redis://redis:6379"
-
+#CELERY_BROKER_URL = "redis://redis:6379"
+#CELERY_RESULT_BACKEND = "redis://redis:6379"
+CELERY_BROKER_URL = 'redis://172.19.34.175:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
 
 from celery import Celery
 
@@ -193,8 +198,6 @@ CORS_ALLOW_CREDENTIALS = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
-
-
 DEFAULT_FS = 44100  # Sample rate, commonly 44100Hz
 DEFAULT_WINDOW_SIZE = 4096  # FFT window size
 DEFAULT_OVERLAP_RATIO = 0.5  # Overlap ratio for spectrograms
@@ -206,10 +209,6 @@ FINGERPRINT_REDUCTION = 32  # Size of the hash (first N characters)
 PEAK_SORT = True  # Whether to sort peaks before hashing
 CONNECTIVITY_MASK = 2  # Mask used for peak neighborhood
 PEAK_NEIGHBORHOOD_SIZE = 2  # Size of the neighborhood for peak detection
-
-
-
-
 
 
 #### GROK
@@ -224,7 +223,3 @@ PEAK_NEIGHBORHOOD_SIZE = 2  # Size of the neighborhood for peak detection
 # FINGERPRINT_REDUCTION = 20
 # PEAK_SORT = True
 # CONNECTIVITY_MASK = 2  # Used in original but not in numba version
-
-
-
-

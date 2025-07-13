@@ -3,16 +3,18 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.db.models import Q
+from rest_framework.authentication import TokenAuthentication
+
+from stations.serializers import AllStationSerializer, StationDetailsSerializer
+
 
 from ..models import Station, User
-from ..serializers import StationSerializer, StationDetailsSerializer
-from core.authentication import CustomJWTAuthentication
 from rest_framework.permissions import IsAuthenticated
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def add_station(request):
     payload = {}
     data = {}
@@ -57,7 +59,7 @@ def add_station(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def get_all_stations_view(request):
     payload = {}
     data = {}
@@ -86,7 +88,7 @@ def get_all_stations_view(request):
     except EmptyPage:
         paginated = paginator.page(paginator.num_pages)
 
-    serializer = StationSerializer(paginated, many=True)
+    serializer = AllStationSerializer(paginated, many=True)
     data['stations'] = serializer.data
     data['pagination'] = {
         'page_number': paginated.number,
@@ -103,7 +105,7 @@ def get_all_stations_view(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def get_station_details_view(request):
     payload = {}
     errors = {}
@@ -117,7 +119,7 @@ def get_station_details_view(request):
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        station = Station.objects.get(id=station_id)
+        station = Station.objects.get(station_id=station_id)
     except Station.DoesNotExist:
         errors['station_id'] = ['Station does not exist.']
         payload['message'] = 'Errors'
@@ -133,7 +135,7 @@ def get_station_details_view(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def edit_station(request):
     payload = {}
     data = {}
@@ -151,7 +153,7 @@ def edit_station(request):
         errors['station_id'] = ['Station ID is required.']
 
     try:
-        station = Station.objects.get(id=station_id)
+        station = Station.objects.get(station_id=station_id)
     except Station.DoesNotExist:
         errors['station_id'] = ['Station does not exist.']
 
@@ -178,7 +180,7 @@ def edit_station(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def archive_station(request):
     payload = {}
     errors = {}
@@ -189,7 +191,7 @@ def archive_station(request):
         errors['station_id'] = ['Station ID is required.']
 
     try:
-        station = Station.objects.get(id=station_id)
+        station = Station.objects.get(station_id=station_id)
     except Station.DoesNotExist:
         errors['station_id'] = ['Station does not exist.']
 
@@ -207,7 +209,7 @@ def archive_station(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def unarchive_station(request):
     payload = {}
     errors = {}
@@ -218,7 +220,7 @@ def unarchive_station(request):
         errors['station_id'] = ['Station ID is required.']
 
     try:
-        station = Station.objects.get(id=station_id)
+        station = Station.objects.get(station_id=station_id)
     except Station.DoesNotExist:
         errors['station_id'] = ['Station does not exist.']
 
@@ -236,7 +238,7 @@ def unarchive_station(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def delete_station(request):
     payload = {}
     errors = {}
@@ -264,7 +266,7 @@ def delete_station(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([CustomJWTAuthentication])
+@authentication_classes([TokenAuthentication])
 def get_all_archived_stations_view(request):
     payload = {}
     data = {}
@@ -293,7 +295,7 @@ def get_all_archived_stations_view(request):
     except EmptyPage:
         paginated = paginator.page(paginator.num_pages)
 
-    serializer = StationSerializer(paginated, many=True)
+    serializer = AllStationSerializer(paginated, many=True)
     data['stations'] = serializer.data
     data['pagination'] = {
         'page_number': paginated.number,

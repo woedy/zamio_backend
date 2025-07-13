@@ -24,6 +24,7 @@ def add_contributor(request):
 
     name = request.data.get('name', '')
     role = request.data.get('role', '')
+    split_percent = request.data.get('role', '')
     track_id = request.data.get('track_id', '')
 
     if not name:
@@ -87,6 +88,16 @@ def get_all_contributors_view(request):
             Q(role__icontains=search_query) |
             Q(track__title__icontains=search_query)
         )
+
+
+    if filter:
+        if filter == "Name":
+            contributors = contributors.order_by("name")
+        if filter == "Role":
+            contributors = contributors.order_by("role")
+        if filter == "Split":
+            contributors = contributors.order_by("percent_split")
+
 
     paginator = Paginator(contributors, page_size)
     try:

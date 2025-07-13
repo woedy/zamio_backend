@@ -15,10 +15,9 @@ daphne
 djangorestframework-simplejwt
 gunicorn
 ffmpeg-python
-dejavu
+librosa
 
 
 
-
-numpy scipy pydub audioread matplotlib librosa
-librosa numba xxhash
+#numpy scipy pydub audioread matplotlib librosa
+#librosa numba xxhash

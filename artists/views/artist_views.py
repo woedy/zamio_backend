@@ -63,6 +63,7 @@ def add_artist(request):
   
     )
 
+
     data["artist_id"] = artist.artist_id
     data["name"] = artist.name
     data["stage_name"] = artist.stage_name
@@ -103,8 +104,8 @@ def get_all_artists_view(request):
     except EmptyPage:
         paginated_artists = paginator.page(paginator.num_pages)
 
-    from ..serializers import ArtistSerializer  # Make sure you have this
-    serializer = ArtistSerializer(paginated_artists, many=True)
+    from ..serializers import AllArtistsSerializer 
+    serializer = AllArtistsSerializer(paginated_artists, many=True)
 
     data['artists'] = serializer.data
     data['pagination'] = {

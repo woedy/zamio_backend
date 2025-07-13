@@ -9,7 +9,23 @@ User = get_user_model()
 
 
 
-class ArtistSerializer(serializers.ModelSerializer):
+class AllArtistsSerializer(serializers.ModelSerializer):
+    photo = serializers.SerializerMethodField()
+    registered_on = serializers.SerializerMethodField()
+
+
+    class Meta:
+        model = Artist
+        fields = ["artist_id", "stage_name","total_earnings", "photo", "registered_on"]
+
+    def get_photo(self, obj):
+        return obj.user.photo.url if obj.user else None
+
+    def get_registered_on(self, obj):
+        return obj.user.timestamp if obj.user else None
+
+
+class ArtistDetailsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Artist
@@ -24,7 +40,7 @@ from .models import Genre, Album, Track, Contributor, PlatformAvailability
 class GenreSerializer(serializers.ModelSerializer):
     class Meta:
         model = Genre
-        fields = '__all__'
+        fields = ['id', 'name']
 
 # Album Serializer
 class AlbumSerializer(serializers.ModelSerializer):
@@ -32,17 +48,31 @@ class AlbumSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Album
-        fields = '__all__'
+        fields = ['id', 'title', 'artist_name']
 
 # Track Serializer
 class TrackSerializer(serializers.ModelSerializer):
-    artist_name = serializers.CharField(source='artist.name', read_only=True)  # To include artist name in the response
+    artist_name = serializers.CharField(source='artist.stage_name', read_only=True)  # To include artist name in the response
     album_title = serializers.CharField(source='album.title', read_only=True)  # To include album title in the response
     genre_name = serializers.CharField(source='genre.name', read_only=True)  # To include genre name in the response
 
     class Meta:
         model = Track
         fields = '__all__'
+
+
+
+class TrackDetailsSerializer(serializers.ModelSerializer):
+    artist_name = serializers.CharField(source='artist.stage_name', read_only=True)  # To include artist name in the response
+    album_title = serializers.CharField(source='album.title', read_only=True)  # To include album title in the response
+    genre_name = serializers.CharField(source='genre.name', read_only=True)  # To include genre name in the response
+
+    class Meta:
+        model = Track
+        fields = '__all__'
+
+
+
 
 # Contributor Serializer
 class ContributorSerializer(serializers.ModelSerializer):

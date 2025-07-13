@@ -1,8 +1,9 @@
 from django.urls import path
 
-from accounts.api.admin_view import AdminLogin, register_admin_view
+from accounts.api.admin_view import AdminLogin, register_admin_view, resend_email_verification, verify_email
 from accounts.api.artist_views import ArtistLogin, register_artist_view
-from accounts.api.chef_views import resend_email_verification, verify_email
+from accounts.api.fun_views import FunLogin, register_fun_view
+from accounts.api.station_views import StationLogin, register_station_view
 from accounts.api.password_views import PasswordResetView, confirm_otp_password_view, new_password_reset_view, resend_password_otp
 
 app_name = 'accounts'
@@ -18,10 +19,13 @@ urlpatterns = [
     path('login-artist/', ArtistLogin.as_view(), name="login_artist"),
    # 
 
-    #path('register-chef/', register_chef, name="register_chef"),
-    #path('login-chef/', ChefLogin.as_view(), name="login_chef"),
-    #path('verify-chef-email/', verify_chef_email, name="verify_chef_email"),
-    #path('resend-chef-email-verification/', resend_chef_email_verification, name="resend_chef_email_verification"),
+    path('register-station/', register_station_view, name="register_station"),
+    path('login-station/', StationLogin.as_view(), name="login_station"),
+
+
+    ## Add fun account URL
+    path('register-fun/', register_fun_view, name="register_fun"),
+    path('login-fun/', FunLogin.as_view(), name="login_fun"),
 
 
 
