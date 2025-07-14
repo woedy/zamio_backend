@@ -24,20 +24,13 @@ def add_album(request):
 
     title = request.data.get('title', "")
     artist_id = request.data.get('artist_id', "")
-    release_date = request.data.get('release_date', "")
-    upc_code = request.data.get('upc_code', "")
-    cover_art = request.FILES.get('cover_art', None)
+    release_date = request.data.get('release_date', "").strip()
 
     if not title:
         errors['title'] = ['Album title is required.']
     if not artist_id:
         errors['artist_id'] = ['Artist ID is required.']
-    if not release_date:
-        errors['release_date'] = ['Release date is required.']
-    if not upc_code:
-        errors['upc_code'] = ['UPC code is required.']
-    elif Album.objects.filter(upc_code=upc_code).exists():
-        errors['upc_code'] = ['UPC code already exists.']
+
 
     try:
         artist = Artist.objects.get(artist_id=artist_id)
@@ -52,9 +45,7 @@ def add_album(request):
     album = Album.objects.create(
         title=title,
         artist=artist,
-        release_date=release_date,
-        upc_code=upc_code,
-        cover_art=cover_art,
+        release_date=release_date or None,
         active=True
     )
 

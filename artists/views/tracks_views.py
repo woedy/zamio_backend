@@ -17,14 +17,19 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.api.artist_views import is_valid_email, check_email_exist
-from artists.models import Album, Artist, Fingerprint, Genre, Track
+from artists.models import Album, Artist, Contributor, Fingerprint, Genre, Track
 from artists.serializers import AlbumSerializer, GenreSerializer
 from django.core.files.base import ContentFile
 
 from artists.utils.fingerprint_tracks import simple_fingerprint
+from datetime import timedelta
+
+from music_monitor.models import PlayLog, StreamLog
 
 
 User = get_user_model()
+
+
 
 
 
@@ -121,23 +126,29 @@ def add_track(request):
 
         # Convert or copy to both formats
         if original_ext == '.mp3':
-            # Convert MP3 to WAV for fingerprinting
             subprocess.run(['ffmpeg', '-i', input_path, '-ar', '44100', '-ac', '2', '-f', 'wav', wav_path], check=True)
-            shutil.copyfile(input_path, mp3_path)
+            if input_path != mp3_path:
+                shutil.copyfile(input_path, mp3_path)
+            else:
+                # Just use the input_path as the mp3_path
+                mp3_path = input_path
 
         elif original_ext == '.wav':
-            # Convert WAV to MP3 for playback
             subprocess.run(['ffmpeg', '-i', input_path, '-b:a', '192k', mp3_path], check=True)
             shutil.copyfile(input_path, wav_path)
 
         else:
             raise ValueError("Unsupported file type. Only .mp3 and .wav are supported.")
 
-        # Fingerprinting with WAV version
+        # Load audio and extract duration
         clip_samples, clip_sr = librosa.load(wav_path, sr=None)
+        duration_seconds = librosa.get_duration(y=clip_samples, sr=clip_sr)
+        track.duration = timedelta(seconds=round(duration_seconds))
+
+        # Generate fingerprints
         audio_fingerprints = simple_fingerprint(clip_samples, clip_sr, plot=False)
 
-        # Save both files to Track model
+        # Save both audio formats to Track model
         with open(wav_path, 'rb') as wav_file, open(mp3_path, 'rb') as mp3_file:
             wav_django_file = ContentFile(wav_file.read())
             mp3_django_file = ContentFile(mp3_file.read())
@@ -189,6 +200,7 @@ def add_track(request):
 
 
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
@@ -200,7 +212,7 @@ def get_all_tracks_view(request):
     search_query = request.query_params.get('search', '')
     page_number = request.query_params.get('page', 1)
     artist_id = request.query_params.get('artist_id', "")
-    filter = request.query_params.get('filter', "")
+    order_by = request.query_params.get('order_by', "")
     page_size = 10
 
     try:
@@ -220,6 +232,7 @@ def get_all_tracks_view(request):
     if search_query:
         tracks = tracks.filter(
             Q(title__icontains=search_query) |
+            Q(status__icontains=search_query) |
             Q(isrc_code__icontains=search_query) |
             Q(artist__stage_name__icontains=search_query) |
             Q(artist__stage_name__icontains=search_query) |
@@ -227,15 +240,17 @@ def get_all_tracks_view(request):
             Q(genre__name__icontains=search_query)
         )
 
-    if filter:
-        if filter == "Genre":
+    if order_by:
+        if order_by == "Genre":
             tracks = tracks.order_by("genre__name")
-        if filter == "Album":
+        if order_by == "Album":
             tracks = tracks.order_by("album__title")
-        if filter == "Title":
+        if order_by == "Title":
             tracks = tracks.order_by("title")
-        if filter == "Release Date":
+        if order_by == "Release Date":
             tracks = tracks.order_by("release_date")
+        if order_by == "Status":
+            tracks = tracks.order_by("status")
 
 
 
@@ -270,6 +285,7 @@ def get_all_tracks_view(request):
 def get_track_details_view(request):
     payload = {}
     errors = {}
+    data = {}
 
     track_id = request.query_params.get('track_id')
 
@@ -285,12 +301,46 @@ def get_track_details_view(request):
         payload['message'] = "Errors"
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+    
+    play_count = PlayLog.objects.filter(track=track).count()
+    stream_count = StreamLog.objects.filter(track=track).count()
 
-    from ..serializers import TrackDetailsSerializer
-    serializer = TrackDetailsSerializer(track, many=False)
+    top_station = PlayLog.objects.filter(track=track)
+
+    _top_station = []
+ 
+    
+    data['title'] = track.title
+    data['artist_name'] = track.artist.stage_name
+    data['album_title'] = track.album.title
+    data['genre_name'] = track.genre.name
+    data['duration'] = track.duration.min
+    data['release_date'] = track.release_date
+    data['plays'] = int(play_count + stream_count)
+    data['cover_art'] = track.cover_art.url
+    data['audio_file_mp3'] = track.audio_file_mp3.url
+
+    data['topStations'] = _top_station
+
+
+
+    # Contributors
+    contributors = Contributor.objects.filter(track=track)
+
+    _contributors = []
+    for contrib in contributors:
+        con_data = {
+            'role': contrib.role,
+            'name': contrib.name,
+        }
+        _contributors.append(con_data)
+
+    data['contributors'] = _contributors
+
+
 
     payload['message'] = "Successful"
-    payload['data'] = serializer.data
+    payload['data'] = data
     return Response(payload)
 
 

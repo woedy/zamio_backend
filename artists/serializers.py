@@ -62,6 +62,8 @@ class TrackSerializer(serializers.ModelSerializer):
 
 
 
+
+
 class TrackDetailsSerializer(serializers.ModelSerializer):
     artist_name = serializers.CharField(source='artist.stage_name', read_only=True)  # To include artist name in the response
     album_title = serializers.CharField(source='album.title', read_only=True)  # To include album title in the response

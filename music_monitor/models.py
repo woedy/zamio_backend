@@ -15,6 +15,7 @@ class MatchCache(models.Model):
 
     matched_at = models.DateTimeField(auto_now_add=True)
     avg_confidence_score = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    processed = models.BooleanField(default=False)
 
     
 
@@ -63,7 +64,7 @@ class PlayLog(models.Model):
 
 class StreamLog(models.Model):
     track = models.ForeignKey(Track, on_delete=models.CASCADE, related_name="track_streamlog")
-    fun = models.ForeignKey(Fun, on_delete=models.CASCADE, related_name="fun_playlog")
+    fun = models.ForeignKey(Fun, on_delete=models.CASCADE, null=True, blank=True, related_name="fun_playlog")
     
 
     played_at = models.DateTimeField(null=True, blank=True)

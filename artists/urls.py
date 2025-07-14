@@ -1,6 +1,7 @@
 from django.urls import path
 
 from artists.views.albums_views import add_album, archive_album, delete_album, edit_album, get_album_details_view, get_all_albums_view, get_all_archived_albums_view, unarchive_album
+from artists.views.artist_hompage import get_artist_homedata
 from artists.views.artist_views import add_artist, archive_artist, edit_artist, get_all_archived_artists_view, get_all_artists_view, get_artist_details_view, unarchive_artist
 from artists.views.contributions_views import add_contributor, archive_contributor, delete_contributor, edit_contributor, get_all_archived_contributors_view, get_all_contributors_view, get_contributor_details_view, unarchive_contributor
 from artists.views.genre_views import add_genre, archive_genre, delete_genre, edit_genre, get_all_archived_genres_view, get_all_genres_view, unarchive_genre
@@ -73,4 +74,6 @@ urlpatterns = [
     # path('unarchive/', unarchive_platform_availability, name='unarchive_platform_availability'),
     path('delete-platform-availability/', delete_platform_availability, name='delete_platform_availability'),
     # path('archived/', get_all_archived_platform_availability_view, name='archived_platform_availability'),
+    
+    path('dashboard/', get_artist_homedata, name='get_artist_homedata'),
 ]

@@ -65,12 +65,18 @@ class Genre(models.Model):
     def __str__(self):
         return self.name
 
+
+
+def get_default_album_cover_image():
+    return "defaults/default_album_cover_image.png"
+
+
 class Album(models.Model):
     title = models.CharField(max_length=255)
     artist = models.ForeignKey(Artist, on_delete=models.CASCADE)
-    release_date = models.DateField()
-    cover_art = models.ImageField(upload_to='album_covers/')
-    upc_code = models.CharField(max_length=30, unique=True, help_text="Universal Product Code")
+    release_date = models.DateField(null=True, blank=True)
+    cover_art = models.ImageField(upload_to='album_covers/', default=get_default_album_cover_image)
+    upc_code = models.CharField(null=True, max_length=30, unique=True, help_text="Universal Product Code")
 
     is_archived = models.BooleanField(default=False)
     active = models.BooleanField(default=False)
@@ -93,6 +99,15 @@ class ArtistGenre(models.Model):
         return self.name
 
 
+def get_default_track_cover_image():
+    return "defaults/default_track_cover_image.png"
+
+
+STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    ]
 
 class Track(models.Model):
     track_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
@@ -102,7 +117,7 @@ class Track(models.Model):
 
     album = models.ForeignKey(Album, on_delete=models.SET_NULL, null=True, blank=True)
     
-    cover_art = models.ImageField(upload_to='track_covers/')
+    cover_art = models.ImageField(upload_to='track_covers/', default=get_default_track_cover_image)
 
     audio_file = models.FileField(upload_to='tracks/')
     
@@ -119,6 +134,7 @@ class Track(models.Model):
     fingerprinted = models.BooleanField(default=False)
     royalty_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default="Pending")
 
 
     is_archived = models.BooleanField(default=False)

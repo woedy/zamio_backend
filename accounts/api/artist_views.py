@@ -39,6 +39,7 @@ def register_artist_view(request):
         email = request.data.get('email', "").lower()
         first_name = request.data.get('first_name', "")
         last_name = request.data.get('last_name', "")
+        stage_name = request.data.get('stage_name', "")
         phone = request.data.get('phone', "")
         photo = request.FILES.get('photo')
         country = request.data.get('country', "")
@@ -58,6 +59,8 @@ def register_artist_view(request):
 
         if not last_name:
             errors['last_name'] = ['last Name is required.']
+        if not stage_name:
+            errors['stage_name'] = ['Stage Name is required.']
 
         if not phone:
             errors['phone'] = ['Phone number is required.']
@@ -96,7 +99,8 @@ def register_artist_view(request):
             user.save()
 
             artist_profile = Artist.objects.create(
-                user=user
+                user=user,
+                stage_name=stage_name
 
             )
             artist_profile.save()

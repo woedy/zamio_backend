@@ -13,7 +13,7 @@ class BankAccount(models.Model):
     account_id = models.CharField(max_length=20, unique=True)
     balance = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
 
-    currency = models.CharField(blank=True, null=True, default="Ghc")
+    currency = models.CharField(max_length=50, blank=True, null=True, default="Ghc")
 
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -81,7 +81,7 @@ class Transaction(models.Model):
     status = models.CharField(max_length=100, choices=STATUS_TYPE, blank=True, null=True)
     payment_method = models.CharField(max_length=100, choices=PAYMENT_TYPE, blank=True, null=True)
 
-    currency = models.CharField(blank=True, null=True, default="Ghc")
+    currency = models.CharField(max_length=50, blank=True, null=True, default="Ghc")
 
 
     requested_on = models.DateTimeField(blank=True, null=True)

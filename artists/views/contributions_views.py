@@ -24,7 +24,7 @@ def add_contributor(request):
 
     name = request.data.get('name', '')
     role = request.data.get('role', '')
-    split_percent = request.data.get('role', '')
+    percent_split = request.data.get('percent_split', '')
     track_id = request.data.get('track_id', '')
 
     if not name:
@@ -33,6 +33,8 @@ def add_contributor(request):
         errors['role'] = ['Role is required.']
     if not track_id:
         errors['track_id'] = ['Track ID is required.']
+    if not percent_split:
+        errors['percent_split'] = ['Percent Split is required.']
 
     try:
         track = Track.objects.get(track_id=track_id)
@@ -52,6 +54,7 @@ def add_contributor(request):
         name=name,
         role=role,
         track=track,
+        percent_split=percent_split,
         active=True
     )
 

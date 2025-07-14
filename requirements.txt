@@ -16,7 +16,7 @@ djangorestframework-simplejwt
 gunicorn
 ffmpeg-python
 librosa
-
+faker
 
 
 #numpy scipy pydub audioread matplotlib librosa

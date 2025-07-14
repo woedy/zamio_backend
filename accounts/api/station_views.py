@@ -39,6 +39,7 @@ def register_station_view(request):
         email = request.data.get('email', "").lower()
         first_name = request.data.get('first_name', "")
         last_name = request.data.get('last_name', "")
+        station_name = request.data.get('station_name', "")
         phone = request.data.get('phone', "")
         photo = request.FILES.get('photo')
         country = request.data.get('country', "")
@@ -58,6 +59,9 @@ def register_station_view(request):
 
         if not last_name:
             errors['last_name'] = ['last Name is required.']
+
+        if not station_name:
+            errors['station_name'] = ['Staion Name is required.']
 
         if not phone:
             errors['phone'] = ['Phone number is required.']
@@ -96,7 +100,8 @@ def register_station_view(request):
             user.save()
 
             station_profile = Station.objects.create(
-                user=user
+                user=user,
+                name=station_name
 
             )
             station_profile.save()
