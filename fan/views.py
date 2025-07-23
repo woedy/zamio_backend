@@ -8,7 +8,7 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from fun.models import Fun
+from fan.models import Fan
 
 User = get_user_model()
 
@@ -17,7 +17,7 @@ User = get_user_model()
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def add_fun(request):
+def add_fan(request):
     payload = {}
     data = {}
     errors = {}
@@ -35,7 +35,7 @@ def add_fun(request):
     contact_email = request.data.get('contact_email', "")
 
     if not name:
-        errors['name'] = ['Fun name is required.']
+        errors['name'] = ['Fan name is required.']
 
     try:
         user = User.objects.get(user_id=user_id)
@@ -48,7 +48,7 @@ def add_fun(request):
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    fun = Fun.objects.create(
+    fan = Fan.objects.create(
         user=user,
         name=name,
         stage_name=stage_name,
@@ -63,9 +63,9 @@ def add_fun(request):
   
     )
 
-    data["fun_id"] = fun.fun_id
-    data["name"] = fun.name
-    data["stage_name"] = fun.stage_name
+    data["fan_id"] = fan.fan_id
+    data["name"] = fan.name
+    data["stage_name"] = fan.stage_name
 
     payload['message'] = "Successful"
     payload['data'] = data
@@ -73,11 +73,10 @@ def add_fun(request):
     return Response(payload, status=status.HTTP_201_CREATED)
 
 
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def get_all_funs_view(request):
+def get_all_fans_view(request):
     payload = {}
     data = {}
     errors = {}
@@ -86,32 +85,30 @@ def get_all_funs_view(request):
     page_number = request.query_params.get('page', 1)
     page_size = 10
 
-    all_funs = Fun.objects.filter(is_archived=False)
+    all_fans = Fan.objects.filter(is_archived=False)
 
     if search_query:
-        all_funs = all_funs.filter(
-            Q(name__icontains=search_query) |
-            Q(stage_name__icontains=search_query) |
-            Q(bio__icontains=search_query)
+        all_fans = all_fans.filter(
+            Q(username__icontains=search_query)
         )
 
-    paginator = Paginator(all_funs, page_size)
+    paginator = Paginator(all_fans, page_size)
     try:
-        paginated_funs = paginator.page(page_number)
+        paginated_fans = paginator.page(page_number)
     except PageNotAnInteger:
-        paginated_funs = paginator.page(1)
+        paginated_fans = paginator.page(1)
     except EmptyPage:
-        paginated_funs = paginator.page(paginator.num_pages)
+        paginated_fans = paginator.page(paginator.num_pages)
 
-    from ..serializers import AllFunsSerializer 
-    serializer = AllFunsSerializer(paginated_funs, many=True)
+    from .serializers import AllFansSerializer 
+    serializer = AllFansSerializer(paginated_fans, many=True)
 
-    data['funs'] = serializer.data
+    data['fans'] = serializer.data
     data['pagination'] = {
-        'page_number': paginated_funs.number,
+        'page_number': paginated_fans.number,
         'total_pages': paginator.num_pages,
-        'next': paginated_funs.next_page_number() if paginated_funs.has_next() else None,
-        'previous': paginated_funs.previous_page_number() if paginated_funs.has_previous() else None,
+        'next': paginated_fans.next_page_number() if paginated_fans.has_next() else None,
+        'previous': paginated_fans.previous_page_number() if paginated_fans.has_previous() else None,
     }
 
     payload['message'] = "Successful"
@@ -127,28 +124,28 @@ def get_all_funs_view(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def get_fun_details_view(request):
+def get_fan_details_view(request):
     payload = {}
     data = {}
     errors = {}
 
-    fun_id = request.query_params.get('fun_id')
+    fan_id = request.query_params.get('fan_id')
 
-    if not fun_id:
-        errors['fun_id'] = ["Fun ID is required"]
+    if not fan_id:
+        errors['fan_id'] = ["Fan ID is required"]
 
     try:
-        fun = Fun.objects.get(fun_id=fun_id)
-    except Fun.DoesNotExist:
-        errors['fun_id'] = ['Fun does not exist']
+        fan = Fan.objects.get(fan_id=fan_id)
+    except Fan.DoesNotExist:
+        errors['fan_id'] = ['Fan does not exist']
 
     if errors:
         payload['message'] = "Errors"
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    from ..serializers import FunSerializer
-    serializer = FunSerializer(fun)
+    from ..serializers import FanSerializer
+    serializer = FanSerializer(fan)
 
     payload['message'] = "Successful"
     payload['data'] = serializer.data
@@ -162,19 +159,19 @@ def get_fun_details_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def edit_fun(request):
+def edit_fan(request):
     payload = {}
     data = {}
     errors = {}
 
-    fun_id = request.data.get('fun_id', "")
-    if not fun_id:
-        errors['fun_id'] = ['Fun ID is required.']
+    fan_id = request.data.get('fan_id', "")
+    if not fan_id:
+        errors['fan_id'] = ['Fan ID is required.']
 
     try:
-        fun = Fun.objects.get(fun_id=fun_id)
-    except Fun.DoesNotExist:
-        errors['fun'] = ['Fun not found.']
+        fan = Fan.objects.get(fan_id=fan_id)
+    except Fan.DoesNotExist:
+        errors['fan'] = ['Fan not found.']
 
     if errors:
         payload['message'] = "Errors"
@@ -188,12 +185,12 @@ def edit_fun(request):
     for field in fields_to_update:
         value = request.data.get(field)
         if value is not None:
-            setattr(fun, field, value)
+            setattr(fan, field, value)
 
-    fun.save()
+    fan.save()
 
-    data["fun_id"] = fun.id
-    data["name"] = fun.name
+    data["fan_id"] = fan.id
+    data["name"] = fan.name
 
     payload['message'] = "Successful"
     payload['data'] = data
@@ -206,26 +203,26 @@ def edit_fun(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def archive_fun(request):
+def archive_fan(request):
     payload = {}
     errors = {}
 
-    fun_id = request.data.get('fun_id')
-    if not fun_id:
-        errors['fun_id'] = ['Fun ID is required.']
+    fan_id = request.data.get('fan_id')
+    if not fan_id:
+        errors['fan_id'] = ['Fan ID is required.']
 
     try:
-        fun = Fun.objects.get(fun_id=fun_id)
-    except Fun.DoesNotExist:
-        errors['fun'] = ['Fun not found.']
+        fan = Fan.objects.get(fan_id=fan_id)
+    except Fan.DoesNotExist:
+        errors['fan'] = ['Fan not found.']
 
     if errors:
         payload['message'] = "Errors"
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    fun.is_archived = True
-    fun.save()
+    fan.is_archived = True
+    fan.save()
 
     payload['message'] = "Successful"
     return Response(payload)
@@ -235,26 +232,26 @@ def archive_fun(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def unarchive_fun(request):
+def unarchive_fan(request):
     payload = {}
     errors = {}
 
-    fun_id = request.data.get('fun_id')
-    if not fun_id:
-        errors['fun_id'] = ['Fun ID is required.']
+    fan_id = request.data.get('fan_id')
+    if not fan_id:
+        errors['fan_id'] = ['Fan ID is required.']
 
     try:
-        fun = Fun.objects.get(fun_id=fun_id)
-    except Fun.DoesNotExist:
-        errors['fun'] = ['Fun not found.']
+        fan = Fan.objects.get(fan_id=fan_id)
+    except Fan.DoesNotExist:
+        errors['fan'] = ['Fan not found.']
 
     if errors:
         payload['message'] = "Errors"
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    fun.is_archived = False
-    fun.save()
+    fan.is_archived = False
+    fan.save()
 
     payload['message'] = "Successful"
     return Response(payload)
@@ -264,25 +261,25 @@ def unarchive_fun(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def delete_fun(request):
+def delete_fan(request):
     payload = {}
     errors = {}
 
-    fun_id = request.data.get('fun_id')
-    if not fun_id:
-        errors['fun_id'] = ['Fun ID is required.']
+    fan_id = request.data.get('fan_id')
+    if not fan_id:
+        errors['fan_id'] = ['Fan ID is required.']
 
     try:
-        fun = Fun.objects.get(id=fun_id)
-    except Fun.DoesNotExist:
-        errors['fun'] = ['Fun not found.']
+        fan = Fan.objects.get(id=fan_id)
+    except Fan.DoesNotExist:
+        errors['fan'] = ['Fan not found.']
 
     if errors:
         payload['message'] = "Errors"
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    fun.delete()
+    fan.delete()
     payload['message'] = "Deleted successfully"
     return Response(payload)
 
@@ -290,7 +287,7 @@ def delete_fun(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def get_all_archived_funs_view(request):
+def get_all_archived_fans_view(request):
     payload = {}
     data = {}
     errors = {}
@@ -299,32 +296,32 @@ def get_all_archived_funs_view(request):
     page_number = request.query_params.get('page', 1)
     page_size = 10
 
-    all_funs = Fun.objects.filter(is_archived=True)
+    all_fans = Fan.objects.filter(is_archived=True)
 
     if search_query:
-        all_funs = all_funs.filter(
+        all_fans = all_fans.filter(
             Q(name__icontains=search_query) |
             Q(stage_name__icontains=search_query) |
             Q(bio__icontains=search_query)
         )
 
-    paginator = Paginator(all_funs, page_size)
+    paginator = Paginator(all_fans, page_size)
     try:
-        paginated_funs = paginator.page(page_number)
+        paginated_fans = paginator.page(page_number)
     except PageNotAnInteger:
-        paginated_funs = paginator.page(1)
+        paginated_fans = paginator.page(1)
     except EmptyPage:
-        paginated_funs = paginator.page(paginator.num_pages)
+        paginated_fans = paginator.page(paginator.num_pages)
 
-    from ..serializers import FunSerializer  # Make sure you have this
-    serializer = FunSerializer(paginated_funs, many=True)
+    from ..serializers import FanSerializer  # Make sure you have this
+    serializer = FanSerializer(paginated_fans, many=True)
 
-    data['funs'] = serializer.data
+    data['fans'] = serializer.data
     data['pagination'] = {
-        'page_number': paginated_funs.number,
+        'page_number': paginated_fans.number,
         'total_pages': paginator.num_pages,
-        'next': paginated_funs.next_page_number() if paginated_funs.has_next() else None,
-        'previous': paginated_funs.previous_page_number() if paginated_funs.has_previous() else None,
+        'next': paginated_fans.next_page_number() if paginated_fans.has_next() else None,
+        'previous': paginated_fans.previous_page_number() if paginated_fans.has_previous() else None,
     }
 
     payload['message'] = "Successful"

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.core.mail import send_mail
 
 from django.conf import settings
@@ -18,6 +19,7 @@ from rest_framework.views import APIView
 
 from accounts.api.serializers import UserRegistrationSerializer
 from activities.models import AllActivity
+from bank_account.models import BankAccount
 from stations.models import Station
 from core.utils import generate_email_token, is_valid_email, is_valid_password
 
@@ -105,6 +107,12 @@ def register_station_view(request):
 
             )
             station_profile.save()
+
+            account, = BankAccount.objects.get_or_create(user=user, defaults={
+                        "balance": Decimal('0.00'),
+                        "currency": "Ghc"
+                    })
+
 
        
 
@@ -254,6 +262,7 @@ class StationLogin(APIView):
 
 
         data["user_id"] = user.user_id
+        data["station_id"] = station.station_id
         data["email"] = user.email
         data["first_name"] = user.first_name
         data["last_name"] = user.last_name

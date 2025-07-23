@@ -2,7 +2,7 @@ from django.urls import path
 
 from accounts.api.admin_view import AdminLogin, register_admin_view, resend_email_verification, verify_email
 from accounts.api.artist_views import ArtistLogin, register_artist_view
-from accounts.api.fun_views import FunLogin, register_fun_view
+from accounts.api.fan_views import FanLogin, register_fan_view
 from accounts.api.station_views import StationLogin, register_station_view
 from accounts.api.password_views import PasswordResetView, confirm_otp_password_view, new_password_reset_view, resend_password_otp
 
@@ -23,9 +23,9 @@ urlpatterns = [
     path('login-station/', StationLogin.as_view(), name="login_station"),
 
 
-    ## Add fun account URL
-    path('register-fun/', register_fun_view, name="register_fun"),
-    path('login-fun/', FunLogin.as_view(), name="login_fun"),
+    ## Add fan account URL
+    path('register-fan/', register_fan_view, name="register_fan"),
+    path('login-fan/', FanLogin.as_view(), name="login_fan"),
 
 
 

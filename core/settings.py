@@ -26,6 +26,7 @@ SECRET_KEY = "django-insecure-wg=khcu9^_pyr8j675w94-^6bd_8g-1i#t((1=i#2zer645d9&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+
 ALLOWED_HOSTS = ["*"]
 
 #EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
@@ -69,7 +70,9 @@ INSTALLED_APPS = [
     "stations",
     "music_monitor",
     "streamer",
-    "fun"
+    "fan",
+    "storages",
+    "notifications"
 ]
 
 
@@ -161,6 +164,7 @@ STATIC_URL = "static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "static_cdn", "static_root")  # For static files
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # Separate media files
+#DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -198,28 +202,34 @@ CORS_ALLOW_CREDENTIALS = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
-DEFAULT_FS = 44100  # Sample rate, commonly 44100Hz
-DEFAULT_WINDOW_SIZE = 4096  # FFT window size
-DEFAULT_OVERLAP_RATIO = 0.5  # Overlap ratio for spectrograms
-DEFAULT_FAN_VALUE = 15  # Number of peaks to consider for pairing
-DEFAULT_AMP_MIN = 10  # Minimum amplitude for peaks
-MIN_HASH_TIME_DELTA = 0  # Minimum delta for hash generation
-MAX_HASH_TIME_DELTA = 200  # Maximum delta for hash generation
-FINGERPRINT_REDUCTION = 32  # Size of the hash (first N characters)
-PEAK_SORT = True  # Whether to sort peaks before hashing
-CONNECTIVITY_MASK = 2  # Mask used for peak neighborhood
-PEAK_NEIGHBORHOOD_SIZE = 2  # Size of the neighborhood for peak detection
+
+AWS_ACCESS_KEY_ID = 'minioadmin'
+AWS_SECRET_ACCESS_KEY = 'minioadmin'
+AWS_STORAGE_BUCKET_NAME = 'media'
+AWS_S3_ENDPOINT_URL = 'http://localhost:9000'
+AWS_S3_FILE_OVERWRITE = False
+AWS_S3_ADDRESSING_STYLE = 'path'
+AWS_QUERYSTRING_AUTH = False
 
 
-#### GROK
-# DEFAULT_FS = 44100
-# DEFAULT_WINDOW_SIZE = 2048
-# DEFAULT_OVERLAP_RATIO = 0.5
-# DEFAULT_FAN_VALUE = 15
-# DEFAULT_AMP_MIN = 10
-# PEAK_NEIGHBORHOOD_SIZE = 20
-# MIN_HASH_TIME_DELTA = 1
-# MAX_HASH_TIME_DELTA = 200
-# FINGERPRINT_REDUCTION = 20
-# PEAK_SORT = True
-# CONNECTIVITY_MASK = 2  # Used in original but not in numba version
+
+
+
+
+# CACHES = {
+#     'default': {
+#         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+#         'LOCATION': 'unique-dashboard-cache'
+#     }
+# }
+
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}

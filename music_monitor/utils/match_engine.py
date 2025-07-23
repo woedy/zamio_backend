@@ -13,60 +13,100 @@ import os
 from artists.utils.fingerprint_tracks import simple_fingerprint
 
 
-def simple_match(clip_samples, clip_sr, song_fingerprints, plot=False): # Added clip_samples, clip_sr, and plot parameters
-    """Basic matching of clip fingerprints against song fingerprints."""
-    if len(clip_samples) == 0:
+
+def simple_match_mp3(clip_samples, clip_sr, song_fingerprints, min_match_threshold=5, plot=False):
+    """
+    Match a full audio file against stored song fingerprints.
+    Suitable for uploaded MP3 or audio clips.
+    """
+    if not clip_samples.any():
         return {"match": False, "reason": "No samples in clip", "hashes_matched": 0}
 
-    # Visualize clip waveform
-    if plot: # Added plot condition
-        plt.figure(figsize=(10, 4))
-        plt.plot(clip_samples)
-        plt.title('Clip Waveform')
-        plt.xlabel('Sample')
-        plt.ylabel('Amplitude')
-        plt.show()
-
-    # Generate clip fingerprints
-    clip_fingerprints = simple_fingerprint(clip_samples, clip_sr, plot=plot) # Pass plot parameter to simple_fingerprint
-
+    clip_fingerprints = simple_fingerprint(clip_samples, clip_sr, plot=plot)
     if not clip_fingerprints or not song_fingerprints:
         return {"match": False, "reason": "No fingerprints to match", "hashes_matched": 0}
 
-    # Create dictionaries for faster lookup
-    song_hash_dict = {}
+    hash_index = {}
     for song_id, h, o in song_fingerprints:
-        if h not in song_hash_dict:
-            song_hash_dict[h] = []
-        song_hash_dict[h].append((song_id, o))
+        hash_index.setdefault(h, []).append((song_id, o))
 
     match_map = Counter()
-    matched_hashes_count = 0
-    for h, query_offset in clip_fingerprints:
-        if h in song_hash_dict:
-            for song_id, db_offset in song_hash_dict[h]:
-                offset_diff = db_offset - query_offset
-                match_map[(song_id, offset_diff)] += 1
-                matched_hashes_count += 1 # Count each individual match
+    matched_hashes = 0
+
+    for h, q_offset in clip_fingerprints:
+        for song_id, db_offset in hash_index.get(h, []):
+            delta = db_offset - q_offset
+            match_map[(song_id, delta)] += 1
+            matched_hashes += 1
 
     if not match_map:
-        return {"match": False, "reason": "No matching hashes found", "hashes_matched": 0}
+        return {"match": False, "reason": "No matching hashes", "hashes_matched": 0}
 
-    (song_id, offset_diff), match_count = match_map.most_common(1)[0]
+    (song_id, offset), match_count = match_map.most_common(1)[0]
+    confidence = (match_count / max(len(clip_fingerprints), 1)) * 100
 
-    # Simple threshold for match
-    min_simple_match_threshold = 5 # Define a simple threshold
-
-    if match_count >= min_simple_match_threshold:
+    if match_count >= min_match_threshold:
         return {
             "match": True,
             "song_id": song_id,
-            "offset": offset_diff,
-            "hashes_matched": match_count
+            "offset": offset,
+            "hashes_matched": match_count,
+            "confidence": round(confidence, 2)
         }
     else:
         return {
             "match": False,
-            "reason": "Below simple match threshold",
-            "hashes_matched": match_count
+            "reason": "Below match threshold",
+            "hashes_matched": match_count,
+            "confidence": round(confidence, 2)
         }
+    
+
+
+
+
+def simple_match(stream_samples, sr, song_fingerprints, chunk_duration=5, min_match_threshold=10):
+    """
+    Match against a streaming audio buffer in chunks.
+    Suitable for radio streams or long continuous audio.
+    """
+    chunk_size = int(chunk_duration * sr)
+    total_samples = len(stream_samples)
+
+    hash_index = {}
+    for song_id, h, o in song_fingerprints:
+        hash_index.setdefault(h, []).append((song_id, o))
+
+    matches = []
+    i = 0
+
+    while i + chunk_size < total_samples:
+        chunk = stream_samples[i:i + chunk_size]
+        clip_fingerprints = simple_fingerprint(chunk, sr)
+
+        match_map = Counter()
+        for h, q_offset in clip_fingerprints:
+            for song_id, db_offset in hash_index.get(h, []):
+                delta = db_offset - q_offset
+                match_map[(song_id, delta)] += 1
+
+        if match_map:
+            (song_id, offset), match_count = match_map.most_common(1)[0]
+            confidence = (match_count / max(len(clip_fingerprints), 1)) * 100
+
+            if match_count >= min_match_threshold:
+                matches.append({
+                    "match": True,
+                    "song_id": song_id,
+                    "offset": offset,
+                    "confidence": round(confidence, 2),
+                    "match_count": match_count,
+                    "chunk_start": i / sr,
+                    "chunk_end": (i + chunk_size) / sr
+                })
+                i += int(sr * 15)  # skip 15s ahead to avoid overlapping matches
+                continue
+
+        i += int(sr * 2)  # slide window by 2s otherwise
+
+    return matches if matches else [{"match": False, "reason": "No valid matches found"}]

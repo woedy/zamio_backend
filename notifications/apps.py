@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class FunConfig(AppConfig):
+class NotificationsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'fun'
+    name = 'notifications'

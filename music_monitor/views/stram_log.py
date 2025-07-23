@@ -4,6 +4,7 @@ import uuid
 from collections import Counter
 
 from artists.models import Fingerprint, Track
+from fan.models import Fan
 from music_monitor.models import MatchCache, PlayLog, StreamLog
 from music_monitor.utils.match_engine import simple_match
 from music_monitor.utils.stream_monitor import StreamMonitor, active_sessions
@@ -46,7 +47,7 @@ def log_music_play(request):
         track=track,
         played_at=timezone.now(),
     )
-    #Optional - Fun ID out for now
+    #Optional - Fan ID out for now
 
 
 
@@ -67,8 +68,6 @@ from rest_framework import status
 from django.utils import timezone
 from datetime import timedelta
 
-from music.models import StreamLog, Track, Fun
-from music.serializers import StreamLogSerializer
 
 ROYALTY_RATE_PER_SECOND = 0.005  # GHS per second
 MINIMUM_PLAY_DURATION = 30  # seconds
@@ -83,20 +82,20 @@ class LogStreamView(APIView):
         data = request.data
 
         track_id = data.get("track_id")
-        fun_id = data.get("fun_id")
+        fan_id = data.get("fan_id")
         start_time = data.get("start_time")
         stop_time = data.get("stop_time")
         stream_source = data.get("stream_source", "web")
         device_id = data.get("device_id", None)
 
         # Validate required fields
-        if not all([track_id, fun_id, start_time, stop_time]):
+        if not all([track_id, fan_id, start_time, stop_time]):
             return Response({"error": "Missing required fields."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             track = Track.objects.get(pk=track_id, active=True)
-            fun = Fun.objects.get(pk=fun_id, active=True, is_archived=False)
-        except (Track.DoesNotExist, Fun.DoesNotExist):
+            fan = Fan.objects.get(pk=fan_id, active=True, is_archived=False)
+        except (Track.DoesNotExist, Fan.DoesNotExist):
             return Response({"error": "Invalid track or fan."}, status=status.HTTP_404_NOT_FOUND)
 
         # Parse times
@@ -113,7 +112,7 @@ class LogStreamView(APIView):
         # Prevent duplicate spam (optional)
         recent = StreamLog.objects.filter(
             track=track,
-            fun=fun,
+            fan=fan,
             start_time__gte=timezone.now() - timedelta(minutes=5),
             device_id=device_id
         )
@@ -126,7 +125,7 @@ class LogStreamView(APIView):
         # Create stream log
         stream_log = StreamLog.objects.create(
             track=track,
-            fun=fun,
+            fan=fan,
             start_time=start_dt,
             stop_time=stop_dt,
             played_at=start_dt,

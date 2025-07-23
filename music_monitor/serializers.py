@@ -1,6 +1,6 @@
 # serializers.py
 from rest_framework import serializers
-from .models import MatchCache, PlayLog, Track
+from .models import Dispute, MatchCache, PlayLog, Track
 
 
 
@@ -29,3 +29,11 @@ class PlayLogSerializer(serializers.ModelSerializer):
         model = PlayLog
         fields = '__all__'
 
+
+
+
+
+class DisputeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Dispute
+        fields = '__all__'

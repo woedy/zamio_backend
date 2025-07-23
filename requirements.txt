@@ -17,7 +17,8 @@ gunicorn
 ffmpeg-python
 librosa
 faker
-
+django-storages[boto3]
+django-redis
 
 #numpy scipy pydub audioread matplotlib librosa
 #librosa numba xxhash

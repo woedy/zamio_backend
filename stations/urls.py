@@ -1,5 +1,7 @@
 from django.urls import path
 
+from stations.views.station_dashboard_view import get_station_dashboard_data
+from stations.views.station_playlog_views import get_all_station_playlog_view
 from stations.views.station_programs_staff_views import add_program_staff, archive_program_staff, delete_program_staff, edit_program_staff, get_all_archived_program_staff_view, get_all_program_staff_view, get_program_staff_details_view, unarchive_program_staff
 from stations.views.station_programs_views import add_station_program, archive_station_program, delete_station_program, edit_station_program, get_all_archived_station_programs_view, get_all_station_programs_view, get_station_program_details_view, unarchive_station_program
 from stations.views.station_views import archive_station, edit_station, get_all_archived_stations_view, get_all_stations_view, get_station_details_view, unarchive_station
@@ -37,4 +39,8 @@ urlpatterns = [
     path('unarchive-program-staff/', unarchive_program_staff, name='unarchive_program_staff'),
     path('delete-program-staff/', delete_program_staff, name='delete_program_staff'),
     path('get-all-archived-program-staff/', get_all_archived_program_staff_view, name='get_all_archived_program_staff'),
+    
+    path('dashboard/', get_station_dashboard_data, name='get_station_dashboard_data'),
+    path('playlogs/', get_all_station_playlog_view, name='get_all_station_playlog_view'),
+
 ]

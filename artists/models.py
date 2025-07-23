@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save, pre_save
 
 from core.utils import unique_artist_id_generator, unique_contributor_id_generator, unique_track_id_generator
-from fun.models import Fun
+from fan.models import Fan
 
 User = get_user_model()
 
@@ -22,7 +22,7 @@ class Artist(models.Model):
     website = models.URLField(blank=True, null=True)
     contact_email = models.EmailField(blank=True, null=True)
 
-    followers = models.ManyToManyField(Fun,  related_name='followers')
+    followers = models.ManyToManyField(Fan,  related_name='followers')
     verified = models.BooleanField(default=False)
 
     region = models.CharField(max_length=255, null=True, blank=True)
@@ -56,6 +56,8 @@ pre_save.connect(pre_save_artist_id_receiver, sender=Artist)
 
 class Genre(models.Model):
     name = models.CharField(max_length=100)
+    color = models.CharField(max_length=100)
+    
     
     is_archived = models.BooleanField(default=False)
     active = models.BooleanField(default=False)
@@ -90,7 +92,7 @@ class Album(models.Model):
 
 
 class ArtistGenre(models.Model):
-    artist = models.ForeignKey(Artist, on_delete=models.CASCADE)
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name="artist_genre")
     genre = models.ForeignKey(Genre, on_delete=models.CASCADE)
     
     is_archived = models.BooleanField(default=False)
@@ -226,7 +228,7 @@ class PlatformAvailability(models.Model):
 
 class TrackFeedback(models.Model):
     track = models.ForeignKey(Track, on_delete=models.CASCADE, related_name="track_feedback")
-    fun = models.ForeignKey(Fun, on_delete=models.CASCADE, related_name='fun_feedback')
+    fan = models.ForeignKey(Fan, on_delete=models.CASCADE, related_name='fan_feedback')
     feedback = models.TextField(null=True, blank=True)
     rating = models.IntegerField(default=0)
 

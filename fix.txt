@@ -32,6 +32,8 @@ Edit
 bind 0.0.0.0
 or add it if not present. Then restart Redis:
 
+
+
 bash
 Copy
 Edit

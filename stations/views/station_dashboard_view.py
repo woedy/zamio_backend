@@ -7,6 +7,7 @@ from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 from rest_framework import status
 import random
+from django.db.models.functions import TruncDate
 
 from music_monitor.models import PlayLog
 from stations.models import Station
@@ -30,7 +31,7 @@ def get_station_dashboard_data(request):
         errors['station_id'] = ["Station ID is required"]
 
     try:
-        station = Station.objects.get(id=station_id)
+        station = Station.objects.get(station_id=station_id)
     except Station.DoesNotExist:
         errors['station_id'] = ["Station does not exist"]
 
@@ -136,21 +137,59 @@ def get_station_dashboard_data(request):
         "total": playlogs.count(),
         "disputed": playlogs.filter(flagged=True).count(),
         "undisputed": playlogs.filter(flagged=False).count(),
-        "pending_review": playlogs.filter(dispute_status__isnull=True).count(),
     }
+
+    station_name = station.name
+    #####
+
+    #Change Later
+
+    ##########
+    #######
+    # Actual calculations
+    confidence_score = playlogs.aggregate(avg_confidence=Avg('avg_confidence_score'))['avg_confidence'] or 0.0
+    confidence_score = round(confidence_score, 1)
+
+    active_regions = (
+        playlogs
+        .exclude(track__artist__region__isnull=True)
+        .exclude(track__artist__region__exact='')
+        .values('track__artist__region')
+        .distinct()
+        .count()
+    )
+
+
+    ###########
+
+    trend_qs = (
+        playlogs
+        .annotate(date=TruncDate('played_at'))
+        .values('date')
+        .annotate(plays=Count('id'))
+        .order_by('date')
+        )
+
+    trendData = [{"date": row["date"], "plays": row["plays"]} for row in trend_qs]
+
+
 
     # Final payload
     data.update({
         "period": period if not (start_date_str and end_date_str) else "custom",
         "start_date": start_date_str,
         "end_date": end_date_str,
+        "stationName": station_name,
         "totalSongs": totalSongs,
         "totalPlays": totalPlays,
+        "confidenceScore": confidence_score,
+        "activeRegions": active_regions,
         "totalRoyalties": float(totalRoyalties),
         "topSongs": topSongs,
         "airplayData": airplayData,
         "regionalData": regionalData,
-        "disputeSummary": disputeSummary
+        "disputeSummary": disputeSummary,
+        "trendData": trendData
     })
 
     payload['message'] = "Success"

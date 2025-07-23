@@ -94,7 +94,7 @@ USER_TYPE = (
     ('Artist', 'Artist'),
     ('Station', 'Station'),
     ('Admin', 'Admin'),
-    ('Fun', 'Fun'),
+    ('Fan', 'Fan'),
 
 )
 

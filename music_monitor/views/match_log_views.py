@@ -5,7 +5,7 @@ from collections import Counter
 
 from artists.models import Fingerprint, Track
 from music_monitor.models import MatchCache, PlayLog
-from music_monitor.utils.match_engine import simple_match
+from music_monitor.utils.match_engine import simple_match, simple_match_mp3
 from music_monitor.utils.stream_monitor import StreamMonitor, active_sessions
 from stations.models import Station
 
@@ -161,7 +161,7 @@ def get_active_sessions(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def upload_audio_match(request):
+def upload_audio_match2222(request):
     """
     Accepts an uploaded audio file and station ID, matches it,
     and logs the result into MatchCache (and PlayLog if needed).
@@ -205,14 +205,6 @@ def upload_audio_match(request):
                 matched_at=timezone.now()
             )
 
-            # Optional: Save to PlayLog
-            PlayLog.objects.create(
-                track=track,
-                station=station,
-                played_at=match_cache.matched_at,
-                source='upload'
-            )
-
             return Response({
                 'match': True,
                 'track_title': track.title,
@@ -227,3 +219,102 @@ def upload_audio_match(request):
 
     except Exception as e:
         return Response({'error': f'Processing error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import TokenAuthentication
+
+from django.utils import timezone
+from django.core.management import call_command
+
+import librosa
+import tempfile
+import os
+
+from music_monitor.models import MatchCache
+from stations.models import Station
+from artists.models import Track, Fingerprint
+
+from collections import Counter
+from datetime import timedelta
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def upload_audio_match(request):
+    """
+    Uploads an audio clip, matches it to known fingerprints, and logs to MatchCache.
+    """
+    audio_file = request.FILES.get('file')
+    station_id = request.POST.get('station_id')
+
+    if not audio_file:
+        return Response({'error': 'No audio file provided'}, status=status.HTTP_400_BAD_REQUEST)
+    if not station_id:
+        return Response({'error': 'Station ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        station = Station.objects.get(station_id=station_id)
+    except Station.DoesNotExist:
+        return Response({'error': 'Invalid station ID'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        # Save file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+            for chunk in audio_file.chunks():
+                temp_file.write(chunk)
+            temp_path = temp_file.name
+
+        samples, sr = librosa.load(temp_path, sr=44100)
+        os.remove(temp_path)
+
+        if len(samples) == 0:
+            return Response({'error': 'Empty audio data'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Collect all known fingerprints
+        fingerprints = Fingerprint.objects.select_related('track').values_list('track_id', 'hash', 'offset')
+        fingerprints = list(fingerprints)
+
+        result = simple_match_mp3(samples, sr, fingerprints)
+
+        if result['match']:
+            track = Track.objects.get(id=result['song_id'])
+            hashes_matched = result['hashes_matched']
+            confidence_score = min(100, (hashes_matched / 20) * 100)  # Assuming 20 is baseline
+
+            MatchCache.objects.create(
+                track=track,
+                station=station,
+                station_program=None,
+                matched_at=timezone.now(),
+                avg_confidence_score=confidence_score,
+                processed=False
+            )
+
+            # Optional: Trigger match processing right away
+            # from django.core.management import call_command
+            # call_command('process_matches')
+
+            return Response({
+                'match': True,
+                'track_title': track.title,
+                'artist_name': track.artist.stage_name,
+                'album_title': track.album.title if track.album else None,
+                'confidence': round(confidence_score, 2),
+                'hashes_matched': hashes_matched
+            }, status=status.HTTP_200_OK)
+
+        else:
+            return Response({'match': False, 'reason': result['reason']}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': f'Processing error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+

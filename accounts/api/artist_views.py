@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.core.mail import send_mail
 
 from django.conf import settings
@@ -19,6 +20,7 @@ from rest_framework.views import APIView
 from accounts.api.serializers import UserRegistrationSerializer
 from activities.models import AllActivity
 from artists.models import Artist
+from bank_account.models import BankAccount
 from core.utils import generate_email_token, is_valid_email, is_valid_password
 
 
@@ -104,6 +106,11 @@ def register_artist_view(request):
 
             )
             artist_profile.save()
+
+            account, = BankAccount.objects.get_or_create(user=user, defaults={
+                        "balance": Decimal('0.00'),
+                        "currency": "Ghc"
+                    })
 
        
 

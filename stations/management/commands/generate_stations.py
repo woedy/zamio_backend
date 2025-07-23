@@ -1,6 +1,8 @@
+from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.utils.crypto import get_random_string
 from django.utils import timezone
+from bank_account.models import BankAccount
 from faker import Faker
 from django.contrib.auth import get_user_model
 
@@ -49,6 +51,7 @@ class Command(BaseCommand):
             region = random.choice(REGIONS)
             country = "Ghana"
             station_name = f"{fake.city()} FM"
+            
 
             # Create the Station
             station = Station.objects.create(
@@ -64,6 +67,20 @@ class Command(BaseCommand):
                 about=fake.paragraph(nb_sentences=3),
                 avg_detection_confidence=round(random.uniform(85.0, 99.9), 2),
                 active=True,
+            )
+
+
+            balance = round(random.uniform(1000.00, 50000.00), 2)
+
+            # Create or fetch artist's bank account
+            bank_account, _ = BankAccount.objects.get_or_create(user=user, defaults={
+                "balance": Decimal('0.00'),
+                "currency": "Ghc"
+            })
+
+            bank_account.deposit(
+                amount=Decimal(balance),
+                description=f"Initial Deposit"
             )
 
             # Add 1–3 Station Programs

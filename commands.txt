@@ -23,3 +23,21 @@ https://radio.garden
 https://tunein.com
 
 https://zeno.fm
+
+
+
+
+
+
+set MINIO_ROOT_USER=minioadmin
+set MINIO_ROOT_PASSWORD=minioadmin
+cd C:\minio
+.\minio.exe server C:\minio\data --console-address ":9001"
+
+This will start the S3 API on: http://localhost:9000
+The admin console will be at: http://localhost:9001
+Log in with:
+
+Username: minioadmin
+
+Password: minioadmin

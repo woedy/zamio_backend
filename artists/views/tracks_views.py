@@ -3,6 +3,7 @@ import os
 import subprocess
 import uuid
 import shutil
+from django.db.models import Sum, Count, Avg, F, Q
 
 from click import File
 from django.conf import settings
@@ -24,6 +25,7 @@ from django.core.files.base import ContentFile
 from artists.utils.fingerprint_tracks import simple_fingerprint
 from datetime import timedelta
 
+from core.utils import get_duration
 from music_monitor.models import PlayLog, StreamLog
 
 
@@ -278,6 +280,78 @@ def get_all_tracks_view(request):
     return Response(payload)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def get_all_tracks_admin_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    search_query = request.query_params.get('search', '')
+    page_number = request.query_params.get('page', 1)
+    order_by = request.query_params.get('order_by', "")
+    page_size = 10
+
+
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+
+    tracks = Track.objects.all().order_by("-created_at")
+
+    if search_query:
+        tracks = tracks.filter(
+            Q(title__icontains=search_query) |
+            Q(status__icontains=search_query) |
+            Q(isrc_code__icontains=search_query) |
+            Q(artist__stage_name__icontains=search_query) |
+            Q(artist__stage_name__icontains=search_query) |
+            Q(album__title__icontains=search_query) |
+            Q(genre__name__icontains=search_query)
+        )
+
+    if order_by:
+        if order_by == "Genre":
+            tracks = tracks.order_by("genre__name")
+        if order_by == "Album":
+            tracks = tracks.order_by("album__title")
+        if order_by == "Title":
+            tracks = tracks.order_by("title")
+        if order_by == "Release Date":
+            tracks = tracks.order_by("release_date")
+        if order_by == "Status":
+            tracks = tracks.order_by("status")
+
+
+
+    paginator = Paginator(tracks, page_size)
+    try:
+        paginated_tracks = paginator.page(page_number)
+    except PageNotAnInteger:
+        paginated_tracks = paginator.page(1)
+    except EmptyPage:
+        paginated_tracks = paginator.page(paginator.num_pages)
+
+    from ..serializers import TrackSerializer
+    serializer = TrackSerializer(paginated_tracks, many=True)
+
+    data['tracks'] = serializer.data
+    data['pagination'] = {
+        'page_number': paginated_tracks.number,
+        'total_pages': paginator.num_pages,
+        'next': paginated_tracks.next_page_number() if paginated_tracks.has_next() else None,
+        'previous': paginated_tracks.previous_page_number() if paginated_tracks.has_previous() else None,
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload)
+
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -302,25 +376,42 @@ def get_track_details_view(request):
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
     
-    play_count = PlayLog.objects.filter(track=track).count()
+    playlogs = PlayLog.objects.filter(track=track)
+    play_count = playlogs.count()
     stream_count = StreamLog.objects.filter(track=track).count()
 
-    top_station = PlayLog.objects.filter(track=track)
+    ts_qs = playlogs.values('station__name', 'station__region').annotate(plays=Count('id')).order_by('-plays')
+   
+    _top_station = [{
+        "name": s['station__name'],
+        "count": s['plays'],
+    } for s in ts_qs[:5]]
 
-    _top_station = []
- 
-    
+    plogs = playlogs[:5]
+    _playlogs = []
+
+    for log in plogs:
+        l = {
+          "time": log.played_at, 
+                "station": log.station.name, 
+                  "region": log.station.region,  
+        }
+        _playlogs.append(l)
+
+
+
     data['title'] = track.title
     data['artist_name'] = track.artist.stage_name
     data['album_title'] = track.album.title
     data['genre_name'] = track.genre.name
-    data['duration'] = track.duration.min
+    data['duration'] = get_duration(track.duration)
     data['release_date'] = track.release_date
     data['plays'] = int(play_count + stream_count)
     data['cover_art'] = track.cover_art.url
-    data['audio_file_mp3'] = track.audio_file_mp3.url
+    data['audio_file_mp3'] = track.audio_file_mp3.url if track.audio_file_mp3 else None
 
     data['topStations'] = _top_station
+    data['playLogs'] = _playlogs
 
 
 
@@ -335,7 +426,32 @@ def get_track_details_view(request):
         }
         _contributors.append(con_data)
 
+
+    
+    playsOverTime = [
+        { "month": 'Jan', "revenue": 45000, "artists": 320, "stations": 15 },
+        { "month": 'Feb', "revenue": 52000, "artists": 380, "stations": 18 },
+        { "month": 'Mar', "revenue": 61000, "artists": 445, "stations": 22 },
+        { "month": 'Apr', "revenue": 58000, "artists": 510, "stations": 25 },
+        { "month": 'May', "revenue": 72000, "artists": 580, "stations": 28 },
+        { "month": 'Jun', "revenue": 85000, "artists": 650, "stations": 32 },
+        { "month": 'Jul', "revenue": 95000, "artists": 720, "stations": 35 },
+    ];
+
+
+    radioStations = [
+        { "name": "Joy FM", "latitude": 5.5600, "longitude": -0.2100 },
+        { "name": "Peace FM", "latitude": 5.5900, "longitude": -0.2400 },
+        { "name": "YFM Accra", "latitude": 5.5800, "longitude": -0.2200 },
+        { "name": "Luv FM", "latitude": 6.6885, "longitude": -1.6244 },
+        { "name": "Skyy Power FM", "latitude": 4.9437, "longitude": -1.7587 },
+        { "name": "Cape FM", "latitude": 5.1053, "longitude": -1.2466 },
+        { "name": "Radio Central", "latitude": 5.1066, "longitude": -1.2474 },
+        { "name": "Radio Savannah", "latitude": 9.4075, "longitude": -0.8419 },
+    ];
     data['contributors'] = _contributors
+    data['playsOverTime'] = playsOverTime
+    data['radioStations'] = radioStations
 
 
 

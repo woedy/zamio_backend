@@ -43,6 +43,7 @@ class BankAccount(models.Model):
                 bank_account=self,
                 transaction_type='Withdrawal',
                 amount=amount,
+                status="Paid",
                 description=description
             )
             return True
@@ -87,6 +88,7 @@ class Transaction(models.Model):
     requested_on = models.DateTimeField(blank=True, null=True)
     paid_on = models.DateTimeField(blank=True, null=True)
     declined_on = models.DateTimeField(blank=True, null=True)
+    date_processed = models.DateTimeField(blank=True, null=True)
 
 
     transaction_type = models.CharField(max_length=50, choices=TRANSACTION_TYPES)

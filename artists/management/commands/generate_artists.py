@@ -1,5 +1,7 @@
+from decimal import Decimal
 import random
 from artists.models import Album, Artist, Contributor, Fingerprint, Genre, Track, TrackFeedback
+from bank_account.models import BankAccount
 from faker import Faker
 from django.core.management.base import BaseCommand
 from django.utils.crypto import get_random_string
@@ -8,7 +10,7 @@ from django.db import transaction
 
 from django.contrib.auth import get_user_model
 
-from fun.models import Fun
+from fan.models import Fan
 User = get_user_model()
 
 fake = Faker()
@@ -35,9 +37,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         count = options['count']
 
-        fun_objects = list(Fun.objects.filter(active=True, is_archived=False))
-        if not fun_objects:
-            self.stdout.write(self.style.ERROR("No active Fun entries found. Please create Fun records first."))
+        fan_objects = list(Fan.objects.filter(active=True, is_archived=False))
+        if not fan_objects:
+            self.stdout.write(self.style.ERROR("No active Fan entries found. Please create Fan records first."))
             return
 
         genres = list(Genre.objects.all())
@@ -66,6 +68,15 @@ class Command(BaseCommand):
                     verified=random.choice([True, False]),
                 )
 
+
+                # Create or fetch artist's bank account
+                bank_account, _ = BankAccount.objects.get_or_create(user=user, defaults={
+                "balance": Decimal('0.00'),
+                "currency": "Ghc"
+                })
+
+
+
                 # Create Artist
                 stage_name = fake.unique.name()
                 artist = Artist.objects.create(
@@ -90,6 +101,11 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(self.style.SUCCESS(f"Created Artist: {artist.stage_name}"))
 
+                #Update Bank account
+                bank_account.balance = Decimal(artist.total_earnings)
+                bank_account.save()
+
+
                 # Generate random number of albums (1-3)
                 album_count = random.randint(1, 3)
                 albums = []
@@ -104,6 +120,8 @@ class Command(BaseCommand):
                         release_date=album_release_date,
                     ))
                 Album.objects.bulk_create(albums)
+
+
 
                 albums = Album.objects.filter(artist=artist)
 
@@ -158,10 +176,10 @@ class Command(BaseCommand):
                         feedback_count = random.randint(1, 3)
                         feedbacks = []
                         for _ in range(feedback_count):
-                            fun = random.choice(fun_objects)
+                            fan = random.choice(fan_objects)
                             feedbacks.append(TrackFeedback(
                                 track=track,
-                                fun=fun,
+                                fan=fan,
                                 feedback=fake.paragraph(nb_sentences=2),
                                 rating=random.randint(1, 5),
                                 active=True,

@@ -6,7 +6,7 @@ from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.db.models import Q
 
 from artists.models import Track
-from music_monitor.models import PlayLog
+from music_monitor.models import MatchCache, PlayLog
 from music_monitor.serializers import MatchCacheSerializer, PlayLogSerializer
 from stations.models import Station, StationProgram
 from rest_framework.authentication import TokenAuthentication
@@ -224,3 +224,14 @@ def get_playlog_list(request):
     payload['data'] = data
 
     return Response(payload, status=status.HTTP_200_OK)
+
+
+from django.db import transaction
+from django.http import HttpResponse
+from django.views.decorators.http import require_GET
+
+@require_GET
+@transaction.atomic
+def delete_all_matches(request):
+    MatchCache.objects.all().delete()
+    return HttpResponse("All items deleted successfully.")

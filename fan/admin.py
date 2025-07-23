@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from fun.models import Fun
+from fan.models import Fan
 
 # Register your models here.
-admin.site.register(Fun)
+admin.site.register(Fan)

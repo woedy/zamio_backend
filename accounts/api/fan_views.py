@@ -18,7 +18,7 @@ from rest_framework.views import APIView
 
 from accounts.api.serializers import UserRegistrationSerializer
 from activities.models import AllActivity
-from fun.models import Fun
+from fan.models import Fan
 from core.utils import generate_email_token, is_valid_email, is_valid_password
 
 
@@ -29,7 +29,7 @@ User = get_user_model()
 @api_view(['POST', ])
 @permission_classes([])
 @authentication_classes([])
-def register_fun_view(request):
+def register_fan_view(request):
 
     payload = {}
     data = {}
@@ -92,14 +92,14 @@ def register_fun_view(request):
                 data["country"] = user.country
 
 
-            user.user_type = "Fun"
+            user.user_type = "Fan"
             user.save()
 
-            fun_profile = Fun.objects.create(
+            fan_profile = Fan.objects.create(
                 user=user
 
             )
-            fun_profile.save()
+            fan_profile.save()
 
        
 
@@ -176,7 +176,7 @@ def check_email_exist(email):
         return False
 
 
-class FunLogin(APIView):
+class FanLogin(APIView):
     authentication_classes = []
     permission_classes = []
 
@@ -219,9 +219,9 @@ class FunLogin(APIView):
 
         
         try:
-            fun = Fun.objects.get(user__email=email)
+            fan = Fan.objects.get(user__email=email)
         except:
-            errors['email'] = ['User is not an Fun']
+            errors['email'] = ['User is not an Fan']
 
 
         if not user:
@@ -258,7 +258,7 @@ class FunLogin(APIView):
 
         new_activity = AllActivity.objects.create(
             user=user,
-            subject="Fun Login",
+            subject="Fan Login",
             body=user.email + " Just logged in."
         )
         new_activity.save()

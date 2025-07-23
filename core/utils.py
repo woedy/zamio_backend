@@ -67,20 +67,20 @@ def unique_artist_id_generator(instance):
     return artist_id
 
 
-def unique_fun_id_generator(instance):
+def unique_fan_id_generator(instance):
     """
-    This is for a fun_id field
+    This is for a fan_id field
     :param instance:
     :return:
     """
     size = random.randint(5, 10)
-    fun_id = "FU-" + random_string_generator(size=size, chars=string.ascii_uppercase + string.digits) + "-N"
+    fan_id = "FU-" + random_string_generator(size=size, chars=string.ascii_uppercase + string.digits) + "-N"
 
     Klass = instance.__class__
-    qs_exists = Klass.objects.filter(fun_id=fun_id).exists()
+    qs_exists = Klass.objects.filter(fan_id=fan_id).exists()
     if qs_exists:
         return None
-    return fun_id
+    return fan_id
 
 
 def unique_station_id_generator(instance):
@@ -221,3 +221,18 @@ def unique_transaction_id_generator(instance):
     if qs_exists:
         return None
     return transaction_id
+
+
+
+
+
+
+
+
+
+
+def get_duration(duration):
+    total_seconds = int(duration.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02}:{minutes:02}:{seconds:02}"

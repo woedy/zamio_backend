@@ -2,14 +2,14 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save, pre_save
 
-from core.utils import unique_fun_id_generator
+from core.utils import unique_fan_id_generator
 
 User = get_user_model()
 
-class Fun(models.Model):
-    fun_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+class Fan(models.Model):
+    fan_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='funs')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='fans')
     username = models.CharField(max_length=255, blank=True, null=True)
     dob = models.DateTimeField(blank=True, null=True)
 
@@ -31,10 +31,10 @@ class Fun(models.Model):
 
     
 
-def pre_save_fun_id_receiver(sender, instance, *args, **kwargs):
-    if not instance.fun_id:
-        instance.fun_id = unique_fun_id_generator(instance)
+def pre_save_fan_id_receiver(sender, instance, *args, **kwargs):
+    if not instance.fan_id:
+        instance.fan_id = unique_fan_id_generator(instance)
 
-pre_save.connect(pre_save_fun_id_receiver, sender=Fun)
+pre_save.connect(pre_save_fan_id_receiver, sender=Fan)
 
 

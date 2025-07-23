@@ -1,36 +1,25 @@
-"""
-URL configuration for core project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
-from django.contrib import admin
-from django.urls import include, path
+from django.conf import settings
 from django.conf.urls.static import static
-
-from core import settings
+from django.contrib import admin
+from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-
-    #path('api/monitor/', include('music_monitor22.urls', 'music_monitor22_api')),
     path('api/accounts/', include('accounts.api.urls', 'accounts_api')),
     path('api/artists/', include('artists.urls', 'artists_api')),
     path('api/stations/', include('stations.urls', 'stations_api')),
-    path('api/fun/', include('fun.urls', 'fun_api')),
+    path('api/fan/', include('fan.urls', 'fan_api')),
+    path('api/mr-admin/', include('mr_admin.urls', 'mr_admin_api')),
     path('api/music-monitor/', include('music_monitor.urls', 'music_monitor_api')),
-
+    path('api/bank-account/', include('bank_account.urls', 'bank_account_api')),
+    path('api/notifications/', include('notifications.api.urls', 'notifications_api')),
 ]
+
+#if settings.DEBUG:
+#    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+#    # 🚫 Do NOT include media static serving here — MinIO handles that
+
+
 if settings.DEBUG:
     urlpatterns = urlpatterns + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns = urlpatterns + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
