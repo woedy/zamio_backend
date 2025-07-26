@@ -224,7 +224,9 @@ def review_match_for_dispute(request):
         return Response(errors, status=status.HTTP_400_BAD_REQUEST)
     
 
-    #dispute.dispute_status = ""
+    dispute.dispute_status = "Resolved"
+    dispute.resolve_comments = comment
+    dispute.save()
 
     serializer = DisputeSerializer(dispute)
     payload['message'] = 'Successful'

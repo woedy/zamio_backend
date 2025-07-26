@@ -64,7 +64,7 @@ def get_station_dashboard_data(request):
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
     # Fetch all logs for this station
-    playlogs = PlayLog.objects.filter(station=station, active=True)
+    playlogs = PlayLog.objects.filter(station=station)
 
     if start_date and end_date:
         playlogs = playlogs.filter(played_at__range=(start_date, end_date))

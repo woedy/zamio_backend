@@ -64,10 +64,10 @@ def get_all_station_playlog_view(request):
     playlogs_qs = PlayLog.objects.filter(station=station, is_archived=False).order_by("-created_at")
     match_cache_qs = MatchCache.objects.filter(station=station).order_by("-matched_at")
 
-    print("####################")
-    print("####################")
-    print("####################")
-    print(match_cache_qs)
+    #print("####################")
+    #print("####################")
+    #print("####################")
+    #print(match_cache_qs)
 
     # Apply search filter on playlogs (adjust as needed)
     if search_query:

@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.db.models.signals import pre_save
 
-from core.utils import unique_account_id_generator, unique_transaction_id_generator
+from core.utils import unique_account_id_generator
 
 
 
@@ -106,3 +106,10 @@ def pre_save_transaction_id_receiver(sender, instance, *args, **kwargs):
         instance.transaction_id = unique_transaction_id_generator(instance)
 
 pre_save.connect(pre_save_transaction_id_receiver, sender=Transaction)
+
+
+
+import uuid
+
+def unique_transaction_id_generator(instance):
+    return f"TXN-{uuid.uuid4().hex[:10].upper()}"

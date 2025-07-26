@@ -1,4 +1,3 @@
-import uuid
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.db import transaction
@@ -26,11 +25,8 @@ def send_sms(to: str, message: str):
 
 ROYALTY_RATE_PER_SECOND = Decimal('0.005')  # GHS per second
 
-
-
 MIN_MATCHES_FOR_VALID_PLAY = 2  # Change from 3 to 2
-MIN_PLAY_DURATION = 0.5  # Change from 30 to 15 seconds
-
+MIN_PLAY_DURATION = 15  # Change from 30 to 15 seconds
 
 class Command(BaseCommand):
     help = 'Simulate realistic radio monitoring and process royalty payments with historical data generation'
@@ -141,7 +137,7 @@ class Command(BaseCommand):
         self.stdout.write("-" * 50)
         
         for station in stations:
-            user_info = f" (Owner: {station.name or station.user.first_name})" if station.user else ""
+            user_info = f" (Owner: {station.user.get_full_name() or station.user.username})" if station.user else ""
             self.stdout.write(f"ID: {station.station_id:3d} | {station.name}{user_info}")
         
         self.stdout.write("-" * 50)
@@ -223,9 +219,6 @@ class Command(BaseCommand):
             start_date = timezone.make_aware(start_date)
         else:
             start_date = timezone.now() - timedelta(days=total_days)
-
-        print(f"DEBUG: Using start_date: {start_date}, self.start_date: {self.start_date}")
-
 
         self.stdout.write(f"🎵 Generating {total_days} days of historical data from {start_date.date()}...")
         self.stdout.write(f"📻 Selected {len(stations)} stations: {', '.join([station.name for station in stations])}")
@@ -312,8 +305,7 @@ class Command(BaseCommand):
                 plays_for_station = self._generate_station_play_schedule(
                     station, day_start, tracks, track_weights
                 )
-
-                # In simulate_realistic_radio_monitoring method, replace this section:
+                
                 for play_info in plays_for_station:
                     # Generate 3-5 MatchCache entries per play (realistic fingerprinting)
                     num_matches = random.randint(3, 5)
@@ -334,6 +326,12 @@ class Command(BaseCommand):
                             avg_confidence_score=confidence,
                             processed=False
                         ))
+                        created_count += 1
+                        
+                        # Bulk create when batch is full
+                        if len(match_cache_batch) >= batch_size:
+                            MatchCache.objects.bulk_create(match_cache_batch)
+                            match_cache_batch = []
 
         # Create remaining batch
         if match_cache_batch:
@@ -606,28 +604,21 @@ class Command(BaseCommand):
 
     def _generate_matches_optimized(self, play_info):
         """Generate matches for a play more efficiently"""
-        #print(f"DEBUG MATCHES: play_info start_time: {play_info['start_time']}")  # ADD THIS
-
         matches = []
         num_matches = random.randint(3, 5)
-
+        
+        # Calculate all timestamps at once
         duration_seconds = play_info['duration']
         start_time = play_info['start_time']
-
-        # Generate matches with proper time distribution
+        
         for i in range(num_matches):
-            # Calculate offset in seconds (not microseconds!)
-            segment_size = duration_seconds / (num_matches + 1)
-            base_offset = segment_size * (i + 1)
-
-            # Add randomness within the segment
-            random_variation = random.uniform(-segment_size * 0.3, segment_size * 0.3)
-            offset_seconds = max(5, min(duration_seconds - 5, base_offset + random_variation))
-
-            # Create the actual timestamp
+            # Distribute matches throughout the song
+            offset_seconds = (duration_seconds / num_matches) * i + random.randint(0, 20)
+            offset_seconds = min(offset_seconds, duration_seconds - 10)
+            
             match_time = start_time + timedelta(seconds=offset_seconds)
             confidence = self._calculate_confidence_score(play_info['track'])
-
+            
             matches.append(MatchCache(
                 track=play_info['track'],
                 station=play_info['station'],
@@ -636,9 +627,8 @@ class Command(BaseCommand):
                 avg_confidence_score=confidence,
                 processed=False
             ))
-
+        
         return matches
-
 
     def _get_seasonal_multiplier(self, date):
         """Get seasonal multiplier based on date"""
@@ -723,25 +713,20 @@ class Command(BaseCommand):
         
         return tracks[0]  # Fallback
 
-
     def _generate_match_timestamps(self, start_time, duration_seconds, num_matches):
         """Generate realistic match timestamps during song play"""
         timestamps = []
+        play_duration = timedelta(seconds=duration_seconds)
         
         for i in range(num_matches):
-            # Calculate proper offset in seconds
-            segment_size = duration_seconds / (num_matches + 1)
-            base_offset = segment_size * (i + 1)
-            
-            # Add some randomness
-            random_variation = random.uniform(-segment_size * 0.2, segment_size * 0.2)
-            offset_seconds = max(5, min(duration_seconds - 5, base_offset + random_variation))
+            # Distribute matches throughout the song
+            offset_seconds = (duration_seconds / num_matches) * i + random.randint(0, 20)
+            offset_seconds = min(offset_seconds, duration_seconds - 10)  # Don't go past song end
             
             match_time = start_time + timedelta(seconds=offset_seconds)
             timestamps.append(match_time)
         
-        return sorted(timestamps)
-
+        return timestamps
 
     def _calculate_confidence_score(self, track):
         """Calculate realistic confidence score based on track characteristics"""
@@ -805,10 +790,8 @@ class Command(BaseCommand):
             transactions_to_create = []
             match_ids_to_update = []
             
-            for group_key, group_data in play_groups.items():
-                track = group_data['track']
-                station = group_data['station'] 
-                matches = group_data['matches']
+            for group_key, matches in play_groups.items():
+                track, station = group_key
                 
                 # Validate play (minimum matches and duration requirements)
                 play_result = self._validate_and_process_play(matches, track, station)
@@ -843,34 +826,13 @@ class Command(BaseCommand):
             if failed_logs_to_create:
                 FailedPlayLog.objects.bulk_create(failed_logs_to_create, batch_size=1000)
                 failed_logs_created += len(failed_logs_to_create)
-                
+            
             if transactions_to_create:
-                successfully_created_transactions = []
-                for transaction in transactions_to_create:
-                    try:
-                        
-                        # Create each transaction individually to avoid ID conflicts
-                        created_transaction = Transaction.objects.create(
-                            bank_account=transaction.bank_account,
-                            transaction_type=transaction.transaction_type,
-                            amount=transaction.amount,
-                            description=transaction.description,
-                            status=transaction.status,
-                            requested_on=transaction.requested_on,
-                            transaction_id=transaction.transaction_id  # ✅ ADD THIS
-
-
-                        )
-                        successfully_created_transactions.append(created_transaction)
-                        transactions_created += 1
-                    except Exception as e:
-                        print(f"Failed to create transaction: {e}")
-                        continue
-                    
+                Transaction.objects.bulk_create(transactions_to_create, batch_size=1000)
+                transactions_created += len(transactions_to_create)
+                
                 # Update bank account balances efficiently
-                if successfully_created_transactions:
-                    self._update_bank_balances_bulk(successfully_created_transactions)
-
+                self._update_bank_balances_bulk(transactions_to_create)
             
             # Mark matches as processed
             if match_ids_to_update:
@@ -890,7 +852,6 @@ class Command(BaseCommand):
         # Send summary notifications
         self._send_processing_summary(playlogs_created, transactions_created)
 
-
     def _group_matches_into_plays(self, matches):
         """Group MatchCache entries into potential plays"""
         play_groups = defaultdict(list)
@@ -901,7 +862,7 @@ class Command(BaseCommand):
             play_groups[group_key].append(match)
         
         # Further group by time proximity (matches within 10 minutes = same play)
-        final_groups = {}
+        refined_groups = defaultdict(list)
         
         for group_key, group_matches in play_groups.items():
             # Sort by timestamp
@@ -920,74 +881,87 @@ class Command(BaseCommand):
                     if time_diff <= 600:  # 10 minutes
                         current_play_matches.append(match)
                     else:
-                        # Save current play group with unique key
-                        unique_key = (group_key[0], group_key[1], play_counter)
-                        final_groups[unique_key] = current_play_matches[:]  # Make copy
+                        # Start new play group
+                        refined_key = (group_key[0], group_key[1], play_counter)
+                        refined_groups[refined_key] = current_play_matches
                         play_counter += 1
                         current_play_matches = [match]
             
             # Don't forget the last group
             if current_play_matches:
-                unique_key = (group_key[0], group_key[1], play_counter)
-                final_groups[unique_key] = current_play_matches
+                refined_key = (group_key[0], group_key[1], play_counter)
+                refined_groups[refined_key] = current_play_matches
         
         # Convert back to simple format for processing
-        result_groups = {}
-        for (track, station, counter), matches in final_groups.items():
-            # Create unique key that won't overwrite
-            result_key = f"{track.id}_{station.station_id}_{counter}"
-            result_groups[result_key] = {
+        final_groups = {}
+        for (track, station, counter), matches in refined_groups.items():
+            final_groups[(track, station)] = matches
+        
+        return final_groups
+
+    def _validate_and_process_play(self, matches, track, station):
+        """Validate if matches constitute a valid play"""
+        if len(matches) < MIN_MATCHES_FOR_VALID_PLAY:
+            return {
+                'valid': False,
+                'reason': f'Insufficient matches ({len(matches)} < {MIN_MATCHES_FOR_VALID_PLAY})',
+                'matches': matches,
                 'track': track,
-                'station': station,
-                'matches': matches
+                'station': station
             }
         
-        return result_groups
-
-    def _create_royalty_transaction(self, playlog, play_result):
-        try:
-            artist_account = BankAccount.objects.get(user=play_result['track'].artist.user)
-            station_account = BankAccount.objects.get(user=play_result['station'].user)
-
-            unique_id = f"ROY-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
-
-            if station_account.balance >= play_result['royalty_amount']:
-                return Transaction(
-                    bank_account=artist_account,
-                    transaction_type='Transfer',
-                    amount=play_result['royalty_amount'],
-                    description=f"Royalty for '{play_result['track'].title}' played on {play_result['station'].name}",
-                    status='Requested',
-                    requested_on=timezone.now(),
-                    transaction_id=unique_id,
-               
-                )
-            else:
-                print(f"DEBUG: Insufficient funds - Station: {play_result['station'].name}, "
-                      f"Balance: {station_account.balance}, Needed: {play_result['royalty_amount']}")
-                return None
-
-        except BankAccount.DoesNotExist as e:
-            print(f"DEBUG: Bank account not found - {e}")
-            return None
-
-
+        # Calculate play duration and other metrics
+        matches_sorted = sorted(matches, key=lambda x: x.matched_at)
+        play_start = matches_sorted[0].matched_at
+        play_end = matches_sorted[-1].matched_at
+        duration_seconds = (play_end - play_start).total_seconds()
+        
+        if duration_seconds < MIN_PLAY_DURATION:
+            return {
+                'valid': False,
+                'reason': f'Play too short ({duration_seconds}s < {MIN_PLAY_DURATION}s)',
+                'matches': matches,
+                'track': track,
+                'station': station,
+                'duration': duration_seconds
+            }
+        
+        # Calculate average confidence
+        avg_confidence = sum(match.avg_confidence_score for match in matches) / len(matches)
+        
+        # Calculate royalty amount
+        royalty_amount = self._calculate_royalty_amount(duration_seconds)
+        
+        return {
+            'valid': True,
+            'matches': matches,
+            'track': track,
+            'station': station,
+            'play_start': play_start,
+            'play_end': play_end,
+            'duration': duration_seconds,
+            'avg_confidence': avg_confidence,
+            'royalty_amount': royalty_amount,
+            'match_count': len(matches)
+        }
 
     def _create_playlog_entry(self, play_result):
         return PlayLog(
             track=play_result['track'],
             station=play_result['station'],
             station_program=None,
-            source='Radio',
+            source='Radio',  # ADD THIS - required field
             played_at=play_result['play_start'],
-            start_time=play_result['play_start'],
-            stop_time=play_result['play_end'],
-            duration=timedelta(seconds=int(play_result['duration'])),
+            start_time=play_result['play_start'],  # ADD THIS
+            stop_time=play_result['play_end'],     # ADD THIS  
+            duration=timedelta(seconds=int(play_result['duration'])),  # FIX: use timedelta
             avg_confidence_score=play_result['avg_confidence'],
             royalty_amount=play_result['royalty_amount'],
-            active=True
+            # Remove these fields - they don't exist in your PlayLog model:
+            # duration_seconds=int(play_result['duration']),
+            # match_count=play_result['match_count'],
+            # payment_processed=False
         )
-
 
     def _create_failed_playlog_entry(self, play_result, matches):
         """Create a FailedPlayLog entry for invalid plays"""
@@ -1003,6 +977,27 @@ class Command(BaseCommand):
         )
 
 
+    def _create_royalty_transaction(self, playlog, play_result):
+        try:
+            artist_account = BankAccount.objects.get(user=play_result['track'].artist.user)
+            station_account = BankAccount.objects.get(user=play_result['station'].user)
+
+            if station_account.balance >= play_result['royalty_amount']:
+                return Transaction(
+                    bank_account=artist_account,
+                    transaction_type='Transfer',
+                    amount=play_result['royalty_amount'],
+                    description=f"Royalty for '{play_result['track'].title}' played on {play_result['station'].name}",
+                    status='Requested',  # Start as requested, will be updated to Paid/Declined
+                    requested_on=timezone.now()
+                )
+            else:
+                return None
+
+        except BankAccount.DoesNotExist:
+            logger.warning(f"Bank account not found for transaction")
+            return None
+    
 
     def _calculate_royalty_amount(self, duration_seconds):
         """Calculate royalty amount based on play duration"""
@@ -1011,75 +1006,15 @@ class Command(BaseCommand):
         return Decimal(str(capped_duration)) * ROYALTY_RATE_PER_SECOND
 
 
-    def _validate_and_process_play(self, matches, track, station):
-       """Validate if matches constitute a valid play"""
-       print(f"\nDEBUG: Validating play - Track: {track.title}, Station: {station.name}, Matches: {len(matches)}")
-    
-       # DEBUG: Print all match timestamps
-       matches_sorted = sorted(matches, key=lambda x: x.matched_at)
-       print(f"DEBUG: Match timestamps:")
-       for i, match in enumerate(matches_sorted):
-           print(f"  Match {i+1}: {match.matched_at}")
-    
-       if len(matches) < MIN_MATCHES_FOR_VALID_PLAY:
-           print(f"DEBUG: FAILED - Insufficient matches ({len(matches)} < {MIN_MATCHES_FOR_VALID_PLAY})")
-           return {
-               'valid': False,
-               'reason': f'Insufficient matches ({len(matches)} < {MIN_MATCHES_FOR_VALID_PLAY})',
-               'matches': matches,
-               'track': track,
-               'station': station
-           }
-    
-       # Calculate play duration and other metrics
-       play_start = matches_sorted[0].matched_at
-       play_end = matches_sorted[-1].matched_at
-       duration_seconds = (play_end - play_start).total_seconds()
-    
-       print(f"DEBUG: Play start: {play_start}")
-       print(f"DEBUG: Play end: {play_end}")
-       print(f"DEBUG: Time difference: {play_end - play_start}")
-       print(f"DEBUG: Duration calculated: {duration_seconds}s (min required: {MIN_PLAY_DURATION}s)")
-    
-       if duration_seconds < MIN_PLAY_DURATION:
-           print(f"DEBUG: FAILED - Play too short ({duration_seconds}s < {MIN_PLAY_DURATION}s)")
-           return {
-               'valid': False,
-               'reason': f'Play too short ({duration_seconds}s < {MIN_PLAY_DURATION}s)',
-               'matches': matches,
-               'track': track,
-               'station': station,
-               'duration': duration_seconds
-           }
-    
-       # Calculate average confidence
-       avg_confidence = sum(match.avg_confidence_score for match in matches) / len(matches)
-    
-       # Calculate royalty amount
-       royalty_amount = self._calculate_royalty_amount(duration_seconds)
-    
-       print(f"DEBUG: SUCCESS - Valid play created, Duration: {duration_seconds}s, Royalty: {royalty_amount}")
-    
-       return {
-           'valid': True,
-           'matches': matches,
-           'track': track,
-           'station': station,
-           'play_start': play_start,
-           'play_end': play_end,
-           'duration': duration_seconds,
-           'avg_confidence': avg_confidence,
-           'royalty_amount': royalty_amount,
-           'match_count': len(matches)
-       }
+
 
     def _send_processing_summary(self, playlogs_created, transactions_created):
         """Send processing summary notifications"""
         if playlogs_created > 0:
             # Calculate total royalties paid
             total_royalties = Transaction.objects.filter(
-                transaction_type='Transfer',
-                timestamp__gte=timezone.now() - timedelta(hours=1)
+                transaction_type='royalty_payment',
+                created_at__gte=timezone.now() - timedelta(hours=1)
             ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
             
             summary_message = (
@@ -1104,7 +1039,7 @@ class Command(BaseCommand):
             'total_failed_plays': FailedPlayLog.objects.count(),
             'unprocessed_matches': MatchCache.objects.filter(processed=False).count(),
             'total_royalties_paid': Transaction.objects.filter(
-                transaction_type='Transfer'
+                transaction_type='royalty_payment'
             ).aggregate(total=Sum('amount'))['total'] or Decimal('0'),
             'stations_with_activity': Station.objects.filter(
                 matchcache__processed=True
@@ -1132,6 +1067,28 @@ class Command(BaseCommand):
         
         return deleted_count
 
+
+    def _handle_payment_failure(self, station, artist, amount, reason):
+        """Handle payment failures with email/SMS notifications"""
+        from django.core.mail import send_mail
+
+        # Email to station
+        try:
+            send_mail(
+                subject='Royalty Payment Failed',
+                message=f'Payment of GHS {amount} to {artist.get_full_name()} failed. Reason: {reason}',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[station.user.email],
+            )
+
+            # SMS to station (if phone number available)
+            if hasattr(station.user, 'phone'):
+                send_sms(station.user.phone, f'Royalty payment failed: GHS {amount}. {reason}')
+
+        except Exception as e:
+            logger.error(f"Failed to send payment failure notification: {e}")
+
+    
 
 
 
@@ -1175,14 +1132,14 @@ class Command(BaseCommand):
                     logger.error(f"No bank account found for station: {station.name}")
                     self._handle_payment_failure(
                         station, 
-                        artist_account, 
+                        artist_account.user, 
                         transaction.amount, 
                         "Station bank account not found"
                     )
                     failed_count += 1
                     continue
                 
-                station_transactions[station_account.account_id].append({
+                station_transactions[station_account.id].append({
                     'transaction': transaction,
                     'artist_account': artist_account,
                     'station': station,
@@ -1198,7 +1155,7 @@ class Command(BaseCommand):
         for station_account_id, station_tx_list in station_transactions.items():
             try:
                 # Get fresh station account balance
-                station_account = BankAccount.objects.select_for_update().get(account_id=station_account_id)
+                station_account = BankAccount.objects.select_for_update().get(id=station_account_id)
 
                 successful_transactions = []
                 failed_transactions = []
@@ -1218,7 +1175,7 @@ class Command(BaseCommand):
                             # Perform the transfer using your model's methods
                             if station_account.withdraw(
                                 transaction.amount, 
-                                f"Royalty payment to {artist_account.user.first_name}"
+                                f"Royalty payment to {artist_account.user.get_full_name()}"
                             ):
                                 # Credit artist account
                                 if artist_account.deposit(
@@ -1230,7 +1187,7 @@ class Command(BaseCommand):
                                     processed_count += 1
 
                                     # Update transaction status
-                                    Transaction.objects.filter(transaction_id=transaction.transaction_id).update(
+                                    Transaction.objects.filter(id=transaction.id).update(
                                         status='Paid',
                                         paid_on=timezone.now(),
                                         date_processed=timezone.now()
@@ -1266,13 +1223,13 @@ class Command(BaseCommand):
                 for tx_info in failed_transactions:
                     self._handle_payment_failure(
                         tx_info['station'],
-                        tx_info['artist_account'],
+                        tx_info['artist_account'].user,
                         tx_info['transaction'].amount,
                         "Insufficient station funds or processing error"
                     )
 
                     # Update transaction status to declined
-                    Transaction.objects.filter(transaction_id=tx_info['transaction'].transaction_id).update(
+                    Transaction.objects.filter(id=tx_info['transaction'].id).update(
                         status='Declined',
                         declined_on=timezone.now(),
                         date_processed=timezone.now()
@@ -1309,7 +1266,7 @@ class Command(BaseCommand):
         try:
             subject = f"Insufficient Funds Alert - {station.name}"
             message = (
-                f"Dear {station.name},\n\n"
+                f"Dear {station.user.get_full_name()},\n\n"
                 f"Your station '{station.name}' has insufficient funds to process royalty payments.\n\n"
                 f"Amount needed: GHS {amount_needed:,.2f}\n"
                 f"Current balance: GHS {current_balance:,.2f}\n"
@@ -1348,9 +1305,9 @@ class Command(BaseCommand):
             # Email to station
             station_subject = f"Royalty Payment Failed - {station.name}"
             station_message = (
-                f"Dear {station.name},\n\n"
+                f"Dear {station.user.get_full_name()},\n\n"
                 f"A royalty payment from your station '{station.name}' has failed.\n\n"
-                f"Artist: {artist.stage_name}\n"
+                f"Artist: {artist.get_full_name()}\n"
                 f"Amount: GHS {amount:,.2f}\n"
                 f"Reason: {reason}\n\n"
                 f"Please ensure your account has sufficient funds and contact support if needed.\n\n"
@@ -1369,7 +1326,7 @@ class Command(BaseCommand):
             # Email to artist
             artist_subject = f"Royalty Payment Delayed"
             artist_message = (
-                f"Dear {artist.stage_name},\n\n"
+                f"Dear {artist.get_full_name()},\n\n"
                 f"A royalty payment to your account has been delayed.\n\n"
                 f"Station: {station.name}\n"
                 f"Amount: GHS {amount:,.2f}\n"
@@ -1396,7 +1353,7 @@ class Command(BaseCommand):
                 artist_sms = f"ZAMIO: Royalty payment delayed from {station.name}. Amount: GHS {amount:,.2f}"
                 send_sms(artist.phone, artist_sms)
 
-            logger.warning(f"Payment failure handled: {station.name} -> {artist.user.first_name}, GHS {amount}")
+            logger.warning(f"Payment failure handled: {station.name} -> {artist.get_full_name()}, GHS {amount}")
 
         except Exception as e:
             logger.error(f"Failed to send payment failure notifications: {e}")
@@ -1404,7 +1361,6 @@ class Command(BaseCommand):
 
 # Generate data for specific stations only
 #python manage.py simulate_station_historical --station-ids ST-EFWQCCMLSM ST-YQJF15IYFG ST-OMWDOPLDMR --historical --months 3
-
 # Generate data for max 4 random stations
 #python manage.py simulate_station_historical --max-stations 4 --historical --months 2
 
@@ -1418,4 +1374,3 @@ class Command(BaseCommand):
 
 
 
-#python manage.py simulate_station_historical --start-date 2025-05-01 --days 90 --historical --max-stations 3 --clear-existing

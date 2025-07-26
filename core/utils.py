@@ -207,23 +207,18 @@ def unique_account_id_generator(instance):
     return account_id
 
 
+
+def random_string_generator22(size=10, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
+
+
 def unique_transaction_id_generator(instance):
-    """
-    This is for a transaction_id field
-    :param instance:
-    :return:
-    """
-    size = random.randint(5, 7)
-    transaction_id = "TR-" + random_string_generator(size=size, chars=string.ascii_uppercase + string.digits) + "-(ION)"
-
     Klass = instance.__class__
-    qs_exists = Klass.objects.filter(transaction_id=transaction_id).exists()
-    if qs_exists:
-        return None
-    return transaction_id
-
-
-
+    while True:
+        size = random.randiclearnt(5, 15)
+        transaction_id = "TR-" + random_string_generator22(size=size) + "-(ION)"
+        if not Klass.objects.filter(transaction_id=transaction_id).exists():
+            return transaction_id
 
 
 

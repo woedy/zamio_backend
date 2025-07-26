@@ -1,7 +1,7 @@
 # urls.py
 from django.urls import path
 
-from music_monitor.views.dispute_views import flag_match_for_dispute, get_all_station_disputes_view, get_match_dispute_details_view
+from music_monitor.views.dispute_views import flag_match_for_dispute, get_all_station_disputes_view, get_match_dispute_details_view, review_match_for_dispute
 from music_monitor.views.match_log_views import (
     get_active_sessions,
     get_stream_matches,
@@ -47,4 +47,5 @@ urlpatterns = [
 
     path("stations-match-disputes/", get_all_station_disputes_view, name="get_all_station_disputes_view"),
     path("match-dispute-details/", get_match_dispute_details_view, name="get_match_dispute_details_view"),
+    path("review-match-for-dispute/", review_match_for_dispute, name="review_match_for_dispute"),
 ]

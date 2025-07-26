@@ -73,6 +73,7 @@ class Dispute(models.Model):
 
     dispute_status = models.CharField(max_length=100, choices=STATUS_TYPE, blank=True, null=True)
     dispute_comments = models.TextField(blank=True, null=True)
+    resolve_comments = models.TextField(blank=True, null=True)
 
 
     pending_at = models.DateTimeField(null=True, blank=True)
