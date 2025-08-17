@@ -99,6 +99,8 @@ def register_station_view(request):
 
 
             user.user_type = "Station"
+            user.phone = phone
+
             user.save()
 
             station_profile = Station.objects.create(
@@ -108,13 +110,12 @@ def register_station_view(request):
             )
             station_profile.save()
 
-            account, = BankAccount.objects.get_or_create(user=user, defaults={
-                        "balance": Decimal('0.00'),
-                        "currency": "Ghc"
-                    })
+            account = BankAccount.objects.get_or_create(
+                user=user, 
+                balance=Decimal('0.00'),
+                currency="Ghc"
+            )
 
-
-       
 
             data['phone'] = user.phone
             data['country'] = user.country
@@ -178,6 +179,91 @@ def register_station_view(request):
 
 
 
+@api_view(['POST', ])
+@permission_classes([])
+@authentication_classes([])
+def verify_station_email(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    email_errors = []
+    token_errors = []
+
+    email = request.data.get('email', '').lower()
+    email_token = request.data.get('email_token', '')
+
+    if not email:
+        email_errors.append('Email is required.')
+
+    qs = User.objects.filter(email=email)
+    if not qs.exists():
+        email_errors.append('Email does not exist.')
+
+    if email_errors:
+        errors['email'] = email_errors
+
+    if not email_token:
+        token_errors.append('Token is required.')
+
+    user = None
+    if qs.exists():
+        user = qs.first()
+        if email_token != user.email_token:
+            token_errors.append('Invalid Token.')
+
+    if token_errors:
+        errors['email_token'] = token_errors
+
+    if email_errors or token_errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+    try:
+        token = Token.objects.get(user=user)
+    except Token.DoesNotExist:
+        token = Token.objects.create(user=user)
+
+    user.is_active = True
+    user.email_verified = True
+    user.save()
+
+    station = Station.objects.get(user=user)
+
+    data["user_id"] = user.user_id
+    data["station_id"] = station.station_id
+
+    data["email"] = user.email
+    data["first_name"] = user.first_name
+    data["last_name"] = user.last_name
+    data["photo"] = user.photo.url
+    data["token"] = token.key
+    data["country"] = user.country
+    data["phone"] = user.phone
+    data["next_step"] = station.onboarding_step
+
+    
+    if station.profile_completed == True:
+        data["profile_completed"] = station.profile_completed
+    else:
+        data["profile_completed"] = station.profile_completed
+
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+
+    new_activity = AllActivity.objects.create(
+        user=user,
+        subject="Verify Email",
+        body=user.email + " just verified their email",
+    )
+    new_activity.save()
+
+    return Response(payload, status=status.HTTP_200_OK)
+
 
 
 def check_email_exist(email):
@@ -189,99 +275,68 @@ def check_email_exist(email):
         return False
 
 
+
 class StationLogin(APIView):
     authentication_classes = []
     permission_classes = []
 
     def post(self, request):
-        payload = {}
-        data = {}
-        errors = {}
-
-
         email = request.data.get('email', '').lower()
         password = request.data.get('password', '')
         fcm_token = request.data.get('fcm_token', '')
+        payload = {}
+        errors = {}
 
         if not email:
             errors['email'] = ['Email is required.']
-
         if not password:
             errors['password'] = ['Password is required.']
-
         if not fcm_token:
-            errors['fcm_token'] = ['FCM device token is required.']
+            errors['fcm_token'] = ['FCM token is required.']
 
-        try:
-            qs = User.objects.filter(email=email)
-        except User.DoesNotExist:
-            errors['email'] = ['User does not exist.']
-
-
-
-
-        if qs.exists():
-            not_active = qs.filter(email_verified=False)
-            if not_active:
-                errors['email'] = ["Please check your email to confirm your account or resend confirmation email."]
-
-        if not check_password(email, password):
-            errors['password'] = ['Invalid Credentials']
+        if errors:
+            return Response({'message': 'Errors', 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
 
         user = authenticate(email=email, password=password)
 
-        print("###############")
-        print(email)
-        print(password)
-
-
-        try:
-            station = Station.objects.get(user__email=email)
-        except:
-            errors['email'] = ['User is not a Station']
-
-
         if not user:
-            errors['email'] = ['Invalid Credentials']
-
-
-
-        if errors:
-            payload['message'] = "Errors"
-            payload['errors'] = errors
-            return Response(payload, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response({'message': 'Errors', 'errors': {'email': ['Invalid credentials']}}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            token = Token.objects.get(user=user)
-        except Token.DoesNotExist:
-            token = Token.objects.create(user=user)
+            station = Station.objects.get(user=user)
+        except Station.DoesNotExist:
+            return Response({'message': 'Errors', 'errors': {'email': ['User is not an station']}}, status=status.HTTP_400_BAD_REQUEST)
 
+        if not user.email_verified:
+            return Response({'message': 'Errors', 'errors': {'email': ['Please check your email to confirm your account or resend confirmation email.']}}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Token and FCM token
+        token, _ = Token.objects.get_or_create(user=user)
         user.fcm_token = fcm_token
         user.save()
 
+        # Determine next onboarding step
+        station.onboarding_step = station.get_next_onboarding_step()
+        station.save()
 
-        data["user_id"] = user.user_id
-        data["station_id"] = station.station_id
-        data["email"] = user.email
-        data["first_name"] = user.first_name
-        data["last_name"] = user.last_name
-        data["photo"] = user.photo.url
-        data["country"] = user.country
-        data["phone"] = user.phone
-        data["token"] = token.key
+        data = {
+            "user_id": user.user_id,
+            "station_id": station.station_id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "photo": user.photo.url if user.photo else None,
+            "country": user.country,
+            "phone": user.phone,
+            "token": token.key,
+            "onboarding_step": station.onboarding_step,
+        }
 
-        payload['message'] = "Successful"
-        payload['data'] = data
+        AllActivity.objects.create(user=user, subject="Station Login", body=f"{user.email} just logged in.")
 
-        new_activity = AllActivity.objects.create(
-            user=user,
-            subject="Station Login",
-            body=user.email + " Just logged in."
-        )
-        new_activity.save()
+        return Response({'message': 'Successful', 'data': data}, status=status.HTTP_200_OK)
 
-        return Response(payload, status=status.HTTP_200_OK)
+
 
 def check_password(email, password):
 
@@ -290,3 +345,300 @@ def check_password(email, password):
         return user.check_password(password)
     except User.DoesNotExist:
         return False
+
+
+
+
+
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def complete_station_profile_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.data.get('station_id', "")
+    bio = request.data.get('bio', "")
+    country = request.data.get('country', "")
+    region = request.data.get('region', "")
+    photo = request.data.get('photo', "")
+
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+
+    try:
+        station = Station.objects.get(station_id=station_id)
+    except Station.DoesNotExist:
+        errors['station_id'] = ['Station not found.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Apply changes if provided
+    if bio:
+        station.bio = bio
+    if country:
+        station.country = country
+    if region:
+        station.region = region
+    if photo:
+        station.photo = photo
+
+    # Mark this step as complete
+    station.profile_completed = True
+
+    # Move to next onboarding step
+    station.onboarding_step = station.get_next_onboarding_step()
+    station.save()
+
+    data["station_id"] = station.station_id
+    data["next_step"] = station.onboarding_step
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def complete_add_staff_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.data.get('station_id', "")
+    bio = request.data.get('bio', "")
+    country = request.data.get('country', "")
+    region = request.data.get('region', "")
+    photo = request.data.get('photo', "")
+
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+
+    try:
+        station = Station.objects.get(station_id=station_id)
+    except Station.DoesNotExist:
+        errors['station_id'] = ['Station not found.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Apply changes if provided
+    if bio:
+        station.bio = bio
+    if country:
+        station.country = country
+    if region:
+        station.region = region
+    if photo:
+        station.photo = photo
+
+    # Mark this step as complete
+    station.profile_completed = True
+
+    # Move to next onboarding step
+    station.onboarding_step = station.get_next_onboarding_step()
+    station.save()
+
+    data["station_id"] = station.station_id
+    data["next_step"] = station.onboarding_step
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def complete_report_method_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.data.get('station_id', "")
+    bio = request.data.get('bio', "")
+    country = request.data.get('country', "")
+    region = request.data.get('region', "")
+    photo = request.data.get('photo', "")
+
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+
+    try:
+        station = Station.objects.get(station_id=station_id)
+    except Station.DoesNotExist:
+        errors['station_id'] = ['Station not found.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Apply changes if provided
+    if bio:
+        station.bio = bio
+    if country:
+        station.country = country
+    if region:
+        station.region = region
+    if photo:
+        station.photo = photo
+
+    # Mark this step as complete
+    station.profile_completed = True
+
+    # Move to next onboarding step
+    station.onboarding_step = station.get_next_onboarding_step()
+    station.save()
+
+    data["station_id"] = station.station_id
+    data["next_step"] = station.onboarding_step
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def onboard_station_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.data.get('station_id', "")
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+
+    try:
+        station = Station.objects.get(station_id=station_id)
+    except Station.DoesNotExist:
+        errors['station'] = ['Station not found.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    fields_to_update = [
+        'name', 'stage_name', 'bio', 'profile_image', 'spotify_url',
+        'shazam_url', 'instagram', 'twitter', 'website', 'contact_email', 'active'
+    ]
+    for field in fields_to_update:
+        value = request.data.get(field)
+        if value is not None:
+            setattr(station, field, value)
+
+    station.save()
+
+    # Check if fields are not null to complete profile
+    profile_fields = [
+        'name', 'photo', 'phone', 'country', 'region',
+        'location_name', 'lat', 'lng', 'about'
+    ]
+    profile_complete = all(getattr(station, field) is not None for field in profile_fields)
+    station.profile_completed = profile_complete
+    station.save()
+
+    data["station_id"] = station.id
+    data["name"] = station.name
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def complete_station_payment_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.data.get('station_id', "")
+    momo = request.data.get('momo', "")
+    bankAccount = request.data.get('bankAccount', "")
+
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+
+    try:
+        station = Station.objects.get(station_id=station_id)
+    except Station.DoesNotExist:
+        errors['station_id'] = ['Station not found.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Apply changes if provided
+    if momo:
+        station.momo_account = momo
+    if bankAccount:
+        station.bank_account = bankAccount
+
+    # Mark this step as complete
+    station.payment_info_added = True
+
+    # Move to next onboarding step
+    station.onboarding_step = station.get_next_onboarding_step()
+    station.save()
+
+    data["station_id"] = station.station_id
+    data["next_step"] = station.onboarding_step
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def logout_station_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.data.get('station_id', "")
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+
+    try:
+        station = Station.objects.get(station_id=station_id)
+    except Station.DoesNotExist:
+        errors['station_id'] = ['Station not found.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+    
+
+    new_activity = AllActivity.objects.create(
+        user=station.user,
+        type="Authentication",
+        subject="Station Log out",
+        body=station.user.email + " Just logged out of the account."
+    )
+    new_activity.save()
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload)
+

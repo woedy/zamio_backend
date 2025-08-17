@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save, pre_save
@@ -8,30 +9,56 @@ from fan.models import Fan
 User = get_user_model()
 
 class Artist(models.Model):
-    artist_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    ONBOARDING_STEPS = [
+        ('profile', 'Complete Profile'),
+        ('social-media', 'Social Media'),
+        ('payment', 'Add Payment Info'),
+        ('publisher', 'Add Publisher'),
+        ('track', 'Upload Track'),
+        ('done', 'Onboarding Complete'),
+    ]
+
+    artist_id = models.CharField(max_length=255, blank=True, null=True,  default=uuid.uuid4, unique=True)
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='artists')
     stage_name = models.CharField(max_length=255, blank=True, null=True)
-    bio = models.TextField(blank=True)
+    bio = models.TextField(blank=True, null=True)
     total_earnings = models.CharField(max_length=255, blank=True, null=True)
 
     spotify_url = models.URLField(blank=True, null=True)
     shazam_url = models.URLField(blank=True, null=True)
-    instagram = models.URLField(blank=True, null=True)
+    facebook = models.URLField(blank=True, null=True)
     twitter = models.URLField(blank=True, null=True)
+    instagram = models.URLField(blank=True, null=True)
+    youtube = models.URLField(blank=True, null=True)
     website = models.URLField(blank=True, null=True)
     contact_email = models.EmailField(blank=True, null=True)
 
-    followers = models.ManyToManyField(Fan,  related_name='followers')
+    bank_account = models.CharField(max_length=100,  null=True, blank=True)
+    momo_account = models.CharField(max_length=100,  null=True, blank=True)
+
+
+    followers = models.ManyToManyField(Fan, blank=True, related_name='followers')
     verified = models.BooleanField(default=False)
 
     region = models.CharField(max_length=255, null=True, blank=True)
+    city = models.CharField(max_length=255, null=True, blank=True)
     country = models.CharField(max_length=255, null=True, blank=True)
 
+    publisher = models.ForeignKey('publishers.PublisherProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='artist_publishers')
+    self_publish = models.BooleanField(default=False)
 
     location_name = models.CharField(max_length=900, null=True, blank=True)
     lat = models.DecimalField(default=0.0, max_digits=50, decimal_places=20, null=True, blank=True)
     lng = models.DecimalField(default=0.0, max_digits=50, decimal_places=20, null=True, blank=True)
+
+    onboarding_step = models.CharField(max_length=20, choices=ONBOARDING_STEPS, default='profile')
+
+    profile_completed = models.BooleanField(default=False)
+    social_media_added = models.BooleanField(default=False)
+    payment_info_added = models.BooleanField(default=False)
+    publisher_added = models.BooleanField(default=False)
+    track_uploaded = models.BooleanField(default=False)
 
 
     is_archived = models.BooleanField(default=False)
@@ -39,16 +66,26 @@ class Artist(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def get_next_onboarding_step(self):
+        if not self.profile_completed:
+            return 'profile'
+        elif not self.social_media_added:
+            return 'social-media'
+        elif not self.payment_info_added:
+            return 'payment'
+        elif not self.publisher_added:
+            return 'publisher'
+        #elif not self.track_uploaded:
+        #    return 'track'
+        return 'done'
+
     
 
-def pre_save_artist_id_receiver(sender, instance, *args, **kwargs):
-    if not instance.artist_id:
-        instance.artist_id = unique_artist_id_generator(instance)
-
-pre_save.connect(pre_save_artist_id_receiver, sender=Artist)
-
-
-
+# def pre_save_artist_id_receiver(sender, instance, *args, **kwargs):
+#     if not instance.artist_id:
+#         instance.artist_id = unique_artist_id_generator(instance)
+# 
+# pre_save.connect(pre_save_artist_id_receiver, sender=Artist)
 
 
 
@@ -73,12 +110,16 @@ def get_default_album_cover_image():
     return "defaults/default_album_cover_image.png"
 
 
+
 class Album(models.Model):
+
     title = models.CharField(max_length=255)
     artist = models.ForeignKey(Artist, on_delete=models.CASCADE)
     release_date = models.DateField(null=True, blank=True)
     cover_art = models.ImageField(upload_to='album_covers/', default=get_default_album_cover_image)
     upc_code = models.CharField(null=True, max_length=30, unique=True, help_text="Universal Product Code")
+    
+    publisher = models.ForeignKey('publishers.PublisherProfile', on_delete=models.SET_NULL, null=True, related_name='album_publishers')
 
     is_archived = models.BooleanField(default=False)
     active = models.BooleanField(default=False)
@@ -133,6 +174,9 @@ class Track(models.Model):
     lyrics = models.TextField(blank=True, null=True)
     explicit = models.BooleanField(default=False)
 
+    publisher = models.ForeignKey('publishers.PublisherProfile', on_delete=models.SET_NULL, null=True, related_name='track_publishers')
+
+
     fingerprinted = models.BooleanField(default=False)
     royalty_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
@@ -174,11 +218,13 @@ class Contributor(models.Model):
     ]
 
     contributor_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='contributor')
 
-    name = models.CharField(max_length=255)
     role = models.CharField(max_length=50, choices=ROLE_CHOICES)
     track = models.ForeignKey(Track, on_delete=models.CASCADE, related_name='contributors')
     percent_split = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    publisher = models.ForeignKey('publishers.PublisherProfile', on_delete=models.SET_NULL, null=True, related_name='contributor_publishers')
 
     is_archived = models.BooleanField(default=False)
     active = models.BooleanField(default=False)

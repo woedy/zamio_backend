@@ -1,4 +1,5 @@
 
+from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.db.models import Q
@@ -10,6 +11,8 @@ from rest_framework.response import Response
 
 from accounts.api.artist_views import is_valid_email, check_email_exist
 from artists.models import Album, Artist, Contributor, Genre, Track
+from bank_account.models import BankAccount
+from publishers.models import PublisherProfile
 
 User = get_user_model()
 
@@ -22,23 +25,42 @@ def add_contributor(request):
     data = {}
     errors = {}
 
-    name = request.data.get('name', '')
+    email = request.data.get('email', '')
+    first_name = request.data.get('first_name', '')
+    last_name = request.data.get('last_name', '')
     role = request.data.get('role', '')
     percent_split = request.data.get('percent_split', '')
     track_id = request.data.get('track_id', '')
+    publihser_id = request.data.get('publihser_id', '')
 
-    if not name:
-        errors['name'] = ['Name is required.']
+    
+    if not email:
+        errors['email'] = ['User Email is required.']
+    elif not is_valid_email(email):
+        errors['email'] = ['Valid email required.']
+    elif check_email_exist(email):
+        errors['email'] = ['Email already exists in our database.']
+
+    if not first_name:
+        errors['first_name'] = ['First Name is required.']
+    if not last_name:
+        errors['last_name'] = ['Last Name is required.']
     if not role:
         errors['role'] = ['Role is required.']
     if not track_id:
         errors['track_id'] = ['Track ID is required.']
+    if not publihser_id:
+        errors['publihser_id'] = ['Publisher ID is required.']
     if not percent_split:
         errors['percent_split'] = ['Percent Split is required.']
 
     try:
         track = Track.objects.get(track_id=track_id)
     except Track.DoesNotExist:
+        errors['track'] = ['Track not found.']
+    try:
+        publihser = PublisherProfile.objects.get(publihser_id=publihser_id)
+    except PublisherProfile.DoesNotExist:
         errors['track'] = ['Track not found.']
 
     valid_roles = dict(Contributor.ROLE_CHOICES).keys()
@@ -49,14 +71,29 @@ def add_contributor(request):
         payload['message'] = "Errors"
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+    
+    user = User.objects.create(
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+    )
 
     contributor = Contributor.objects.create(
-        name=name,
+        user=user,
         role=role,
         track=track,
+        publihser=publisher,
         percent_split=percent_split,
         active=True
     )
+    
+    account = BankAccount.objects.get_or_create(
+                user=user, 
+                balance=Decimal('0.00'),
+                currency="Ghc"
+            )
+
+
 
     data['contributor_id'] = contributor.id
     data['name'] = contributor.name

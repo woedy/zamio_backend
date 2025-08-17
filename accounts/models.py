@@ -95,6 +95,8 @@ USER_TYPE = (
     ('Station', 'Station'),
     ('Admin', 'Admin'),
     ('Fan', 'Fan'),
+    ('Publisher', 'Publisher'),
+    ('contributor', 'contributor'),
 
 )
 

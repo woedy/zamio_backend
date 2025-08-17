@@ -8,10 +8,10 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from artists.models import Artist, Contributor, Track
 from bank_account.models import BankAccount
 from core.utils import get_duration
 from music_monitor.models import PlayLog, StreamLog
+from publishers.models import PublisherProfile
 
 User = get_user_model()
 
@@ -20,7 +20,7 @@ User = get_user_model()
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def add_artist(request):
+def add_publisher(request):
     payload = {}
     data = {}
     errors = {}
@@ -38,7 +38,7 @@ def add_artist(request):
     contact_email = request.data.get('contact_email', "")
 
     if not name:
-        errors['name'] = ['Artist name is required.']
+        errors['name'] = ['PublisherProfile name is required.']
 
     try:
         user = User.objects.get(user_id=user_id)
@@ -51,7 +51,7 @@ def add_artist(request):
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    artist = Artist.objects.create(
+    publisher = PublisherProfile.objects.create(
         user=user,
         name=name,
         stage_name=stage_name,
@@ -67,9 +67,9 @@ def add_artist(request):
     )
 
 
-    data["artist_id"] = artist.artist_id
-    data["name"] = artist.name
-    data["stage_name"] = artist.stage_name
+    data["publisher_id"] = publisher.publisher_id
+    data["name"] = publisher.name
+    data["stage_name"] = publisher.stage_name
 
     payload['message'] = "Successful"
     payload['data'] = data
@@ -81,7 +81,7 @@ def add_artist(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def get_all_artists_view(request):
+def get_all_publishers_view(request):
     payload = {}
     data = {}
     errors = {}
@@ -90,31 +90,31 @@ def get_all_artists_view(request):
     page_number = request.query_params.get('page', 1)
     page_size = 10
 
-    all_artists = Artist.objects.filter(is_archived=False)
+    all_publishers = PublisherProfile.objects.filter(is_archived=False)
 
     if search_query:
-        all_artists = all_artists.filter(
+        all_publishers = all_publishers.filter(
             Q(stage_name__icontains=search_query) |
             Q(bio__icontains=search_query)
         )
 
-    paginator = Paginator(all_artists, page_size)
+    paginator = Paginator(all_publishers, page_size)
     try:
-        paginated_artists = paginator.page(page_number)
+        paginated_publishers = paginator.page(page_number)
     except PageNotAnInteger:
-        paginated_artists = paginator.page(1)
+        paginated_publishers = paginator.page(1)
     except EmptyPage:
-        paginated_artists = paginator.page(paginator.num_pages)
+        paginated_publishers = paginator.page(paginator.num_pages)
 
-    from ..serializers import AllArtistsSerializer 
-    serializer = AllArtistsSerializer(paginated_artists, many=True)
+    from ..serializers import AllPublisherProfilesSerializer 
+    serializer = AllPublisherProfilesSerializer(paginated_publishers, many=True)
 
-    data['artists'] = serializer.data
+    data['publishers'] = serializer.data
     data['pagination'] = {
-        'page_number': paginated_artists.number,
+        'page_number': paginated_publishers.number,
         'total_pages': paginator.num_pages,
-        'next': paginated_artists.next_page_number() if paginated_artists.has_next() else None,
-        'previous': paginated_artists.previous_page_number() if paginated_artists.has_previous() else None,
+        'next': paginated_publishers.next_page_number() if paginated_publishers.has_next() else None,
+        'previous': paginated_publishers.previous_page_number() if paginated_publishers.has_previous() else None,
     }
 
     payload['message'] = "Successful"
@@ -130,28 +130,28 @@ def get_all_artists_view(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def get_artist_details_view(request):
+def get_publisher_details_view(request):
     payload = {}
     data = {}
     errors = {}
 
-    artist_id = request.query_params.get('artist_id')
+    publisher_id = request.query_params.get('publisher_id')
 
-    if not artist_id:
-        errors['artist_id'] = ["Artist ID is required"]
+    if not publisher_id:
+        errors['publisher_id'] = ["PublisherProfile ID is required"]
 
     try:
-        artist = Artist.objects.get(artist_id=artist_id)
-    except Artist.DoesNotExist:
-        errors['artist_id'] = ['Artist does not exist']
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['PublisherProfile does not exist']
 
     if errors:
         payload['message'] = "Errors"
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    from ..serializers import ArtistSerializer
-    serializer = ArtistSerializer(artist)
+    from ..serializers import PublisherProfileSerializer
+    serializer = PublisherProfileSerializer(publisher)
 
     payload['message'] = "Successful"
     payload['data'] = serializer.data
@@ -163,19 +163,19 @@ def get_artist_details_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def edit_artist(request):
+def edit_publisher(request):
     payload = {}
     data = {}
     errors = {}
 
-    artist_id = request.data.get('artist_id', "")
-    if not artist_id:
-        errors['artist_id'] = ['Artist ID is required.']
+    publisher_id = request.data.get('publisher_id', "")
+    if not publisher_id:
+        errors['publisher_id'] = ['PublisherProfile ID is required.']
 
     try:
-        artist = Artist.objects.get(artist_id=artist_id)
-    except Artist.DoesNotExist:
-        errors['artist'] = ['Artist not found.']
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher'] = ['PublisherProfile not found.']
 
     if errors:
         payload['message'] = "Errors"
@@ -189,12 +189,12 @@ def edit_artist(request):
     for field in fields_to_update:
         value = request.data.get(field)
         if value is not None:
-            setattr(artist, field, value)
+            setattr(publisher, field, value)
 
-    artist.save()
+    publisher.save()
 
-    data["artist_id"] = artist.id
-    data["name"] = artist.name
+    data["publisher_id"] = publisher.id
+    data["name"] = publisher.name
 
     payload['message'] = "Successful"
     payload['data'] = data
@@ -207,26 +207,26 @@ def edit_artist(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def archive_artist(request):
+def archive_publisher(request):
     payload = {}
     errors = {}
 
-    artist_id = request.data.get('artist_id')
-    if not artist_id:
-        errors['artist_id'] = ['Artist ID is required.']
+    publisher_id = request.data.get('publisher_id')
+    if not publisher_id:
+        errors['publisher_id'] = ['PublisherProfile ID is required.']
 
     try:
-        artist = Artist.objects.get(artist_id=artist_id)
-    except Artist.DoesNotExist:
-        errors['artist'] = ['Artist not found.']
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher'] = ['PublisherProfile not found.']
 
     if errors:
         payload['message'] = "Errors"
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    artist.is_archived = True
-    artist.save()
+    publisher.is_archived = True
+    publisher.save()
 
     payload['message'] = "Successful"
     return Response(payload)
@@ -236,26 +236,26 @@ def archive_artist(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def unarchive_artist(request):
+def unarchive_publisher(request):
     payload = {}
     errors = {}
 
-    artist_id = request.data.get('artist_id')
-    if not artist_id:
-        errors['artist_id'] = ['Artist ID is required.']
+    publisher_id = request.data.get('publisher_id')
+    if not publisher_id:
+        errors['publisher_id'] = ['PublisherProfile ID is required.']
 
     try:
-        artist = Artist.objects.get(artist_id=artist_id)
-    except Artist.DoesNotExist:
-        errors['artist'] = ['Artist not found.']
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher'] = ['PublisherProfile not found.']
 
     if errors:
         payload['message'] = "Errors"
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    artist.is_archived = False
-    artist.save()
+    publisher.is_archived = False
+    publisher.save()
 
     payload['message'] = "Successful"
     return Response(payload)
@@ -265,25 +265,25 @@ def unarchive_artist(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def delete_artist(request):
+def delete_publisher(request):
     payload = {}
     errors = {}
 
-    artist_id = request.data.get('artist_id')
-    if not artist_id:
-        errors['artist_id'] = ['Artist ID is required.']
+    publisher_id = request.data.get('publisher_id')
+    if not publisher_id:
+        errors['publisher_id'] = ['PublisherProfile ID is required.']
 
     try:
-        artist = Artist.objects.get(id=artist_id)
-    except Artist.DoesNotExist:
-        errors['artist'] = ['Artist not found.']
+        publisher = PublisherProfile.objects.get(id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher'] = ['PublisherProfile not found.']
 
     if errors:
         payload['message'] = "Errors"
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    artist.delete()
+    publisher.delete()
     payload['message'] = "Deleted successfully"
     return Response(payload)
 
@@ -291,7 +291,7 @@ def delete_artist(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def get_all_archived_artists_view(request):
+def get_all_archived_publishers_view(request):
     payload = {}
     data = {}
     errors = {}
@@ -300,32 +300,32 @@ def get_all_archived_artists_view(request):
     page_number = request.query_params.get('page', 1)
     page_size = 10
 
-    all_artists = Artist.objects.filter(is_archived=True)
+    all_publishers = PublisherProfile.objects.filter(is_archived=True)
 
     if search_query:
-        all_artists = all_artists.filter(
+        all_publishers = all_publishers.filter(
             Q(name__icontains=search_query) |
             Q(stage_name__icontains=search_query) |
             Q(bio__icontains=search_query)
         )
 
-    paginator = Paginator(all_artists, page_size)
+    paginator = Paginator(all_publishers, page_size)
     try:
-        paginated_artists = paginator.page(page_number)
+        paginated_publishers = paginator.page(page_number)
     except PageNotAnInteger:
-        paginated_artists = paginator.page(1)
+        paginated_publishers = paginator.page(1)
     except EmptyPage:
-        paginated_artists = paginator.page(paginator.num_pages)
+        paginated_publishers = paginator.page(paginator.num_pages)
 
-    from ..serializers import ArtistSerializer  # Make sure you have this
-    serializer = ArtistSerializer(paginated_artists, many=True)
+    from ..serializers import PublisherProfileSerializer  # Make sure you have this
+    serializer = PublisherProfileSerializer(paginated_publishers, many=True)
 
-    data['artists'] = serializer.data
+    data['publishers'] = serializer.data
     data['pagination'] = {
-        'page_number': paginated_artists.number,
+        'page_number': paginated_publishers.number,
         'total_pages': paginator.num_pages,
-        'next': paginated_artists.next_page_number() if paginated_artists.has_next() else None,
-        'previous': paginated_artists.previous_page_number() if paginated_artists.has_previous() else None,
+        'next': paginated_publishers.next_page_number() if paginated_publishers.has_next() else None,
+        'previous': paginated_publishers.previous_page_number() if paginated_publishers.has_previous() else None,
     }
 
     payload['message'] = "Successful"
@@ -348,44 +348,44 @@ from django.db.models import Sum, Count, Q, F
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def get_managed_artist_details_view(request):
+def get_publisher_profile_view(request):
     payload, data, errors = {}, {}, {}
 
-    artist_id = request.query_params.get('artist_id')
-    if not artist_id:
-        errors['artist_id'] = ["Artist ID is required"]
+    publisher_id = request.query_params.get('publisher_id')
+    if not publisher_id:
+        errors['publisher_id'] = ["PublisherProfile ID is required"]
     else:
         try:
-            artist = Artist.objects.get(artist_id=artist_id)
-        except Artist.DoesNotExist:
-            errors['artist_id'] = ["Artist does not exist"]
+            publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+        except PublisherProfile.DoesNotExist:
+            errors['publisher_id'] = ["PublisherProfile does not exist"]
 
     if errors:
         payload['message'] = "Errors"
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    tracks = Track.objects.filter(artist=artist, is_archived=False)
+    tracks = Track.objects.filter(publisher=publisher, is_archived=False)
 
-    # Artist info
-    artistData = {
-        "name": f"{artist.user.first_name or ''} {artist.user.last_name or ''}".strip(),
-        "stageName": artist.stage_name,
-        "bio": artist.bio,
-        "avatar": artist.user.photo.url if artist.user.photo else None,
+    # PublisherProfile info
+    publisherData = {
+        "name": f"{publisher.user.first_name or ''} {publisher.user.last_name or ''}".strip(),
+        "stageName": publisher.stage_name,
+        "bio": publisher.bio,
+        "avatar": publisher.user.photo.url if publisher.user.photo else None,
         "coverImage": None,
-        "verified": artist.verified,
-        "followers": artist.followers.count(),
+        "verified": publisher.verified,
+        "followers": publisher.followers.count(),
         "totalPlays": PlayLog.objects.filter(track__in=tracks).count() + StreamLog.objects.filter(track__in=tracks).count(),
-        "totalEarnings": float(BankAccount.objects.filter(user=artist.user).aggregate(Sum('balance'))['balance__sum'] or 0),
-        "joinDate": artist.created_at.date().isoformat(),
-        "location": artist.location_name or f"{artist.city}, {artist.country}" if hasattr(artist, 'country') else "",
-        "genres": list(artist.artist_genre.filter(is_archived=False).values_list('genre__name', flat=True).distinct()),
+        "totalEarnings": float(BankAccount.objects.filter(user=publisher.user).aggregate(Sum('balance'))['balance__sum'] or 0),
+        "joinDate": publisher.created_at.date().isoformat(),
+        "location": publisher.location_name or f"{publisher.city}, {publisher.country}" if hasattr(publisher, 'country') else "",
+        "genres": list(publisher.publisher_genre.filter(is_archived=False).values_list('genre__name', flat=True).distinct()),
         "contact": {
-            "email": artist.contact_email,
-            "phone": artist.user.phone,
-            "instagram": artist.instagram,
-            "twitter": artist.twitter,
+            "email": publisher.contact_email,
+            "phone": publisher.user.phone,
+            "instagram": publisher.instagram,
+            "twitter": publisher.twitter,
             "facebook": None,
         }
     }
@@ -454,7 +454,7 @@ def get_managed_artist_details_view(request):
     ]
 
     data.update({
-        "artistData": artistData,
+        "publisherData": publisherData,
         "songs": songs,
         "royaltyHistory": royaltyHistory,
         "playLogs": playLogs

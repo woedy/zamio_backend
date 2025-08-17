@@ -19,7 +19,6 @@ from rest_framework.views import APIView
 
 from accounts.api.serializers import UserRegistrationSerializer
 from activities.models import AllActivity
-from artists.models import Artist
 from bank_account.models import BankAccount
 from core.utils import generate_email_token, is_valid_email, is_valid_password
 from publishers.models import PublisherProfile
@@ -32,7 +31,7 @@ User = get_user_model()
 @api_view(['POST', ])
 @permission_classes([])
 @authentication_classes([])
-def register_artist_view(request):
+def register_publisher_view(request):
 
     payload = {}
     data = {}
@@ -42,7 +41,7 @@ def register_artist_view(request):
         email = request.data.get('email', "").lower()
         first_name = request.data.get('first_name', "")
         last_name = request.data.get('last_name', "")
-        stage_name = request.data.get('stage_name', "")
+        company_name = request.data.get('publisher_name', "")
         phone = request.data.get('phone', "")
         photo = request.FILES.get('photo')
         country = request.data.get('country', "")
@@ -62,8 +61,8 @@ def register_artist_view(request):
 
         if not last_name:
             errors['last_name'] = ['last Name is required.']
-        if not stage_name:
-            errors['stage_name'] = ['Stage Name is required.']
+        if not company_name:
+            errors['company_name'] = ['Company Name is required.']
 
         if not phone:
             errors['phone'] = ['Phone number is required.']
@@ -98,21 +97,28 @@ def register_artist_view(request):
                 data["country"] = user.country
 
 
-            user.user_type = "Artist"
+            user.user_type = "Publisher"
             user.phone = phone
+
             user.save()
 
-            artist_profile = Artist.objects.create(
+
+            publisher_profile = PublisherProfile.objects.create(
                 user=user,
-                stage_name=stage_name
+                company_name=company_name
 
             )
-            artist_profile.save()
+            publisher_profile.save()
+
             account = BankAccount.objects.get_or_create(
                 user=user, 
                 balance=Decimal('0.00'),
                 currency="Ghc"
             )
+
+
+
+       
 
             data['phone'] = user.phone
             data['country'] = user.country
@@ -175,10 +181,12 @@ def register_artist_view(request):
     return Response(payload)
 
 
+
+
 @api_view(['POST', ])
 @permission_classes([])
 @authentication_classes([])
-def verify_artist_email(request):
+def verify_publisher_email(request):
     payload = {}
     data = {}
     errors = {}
@@ -227,10 +235,10 @@ def verify_artist_email(request):
     user.email_verified = True
     user.save()
 
-    artist = Artist.objects.get(user=user)
+    publisher = PublisherProfile.objects.get(user=user)
 
     data["user_id"] = user.user_id
-    data["artist_id"] = artist.artist_id
+    data["publisher_id"] = publisher.publisher_id
 
     data["email"] = user.email
     data["first_name"] = user.first_name
@@ -239,13 +247,13 @@ def verify_artist_email(request):
     data["token"] = token.key
     data["country"] = user.country
     data["phone"] = user.phone
-    data["next_step"] = artist.onboarding_step
+    data["next_step"] = publisher.onboarding_step
 
     
-    if artist.profile_completed == True:
-        data["profile_completed"] = artist.profile_completed
+    if publisher.profile_completed == True:
+        data["profile_completed"] = publisher.profile_completed
     else:
-        data["profile_completed"] = artist.profile_completed
+        data["profile_completed"] = publisher.profile_completed
 
 
     payload['message'] = "Successful"
@@ -264,8 +272,6 @@ def verify_artist_email(request):
 
 
 
-
-
 def check_email_exist(email):
 
     qs = User.objects.filter(email=email)
@@ -275,9 +281,7 @@ def check_email_exist(email):
         return False
 
 
-
-
-class ArtistLogin(APIView):
+class PublisherLogin(APIView):
     authentication_classes = []
     permission_classes = []
 
@@ -304,9 +308,9 @@ class ArtistLogin(APIView):
             return Response({'message': 'Errors', 'errors': {'email': ['Invalid credentials']}}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            artist = Artist.objects.get(user=user)
-        except Artist.DoesNotExist:
-            return Response({'message': 'Errors', 'errors': {'email': ['User is not an artist']}}, status=status.HTTP_400_BAD_REQUEST)
+            publisher = PublisherProfile.objects.get(user=user)
+        except PublisherProfile.DoesNotExist:
+            return Response({'message': 'Errors', 'errors': {'email': ['User is not an publisher']}}, status=status.HTTP_400_BAD_REQUEST)
 
         if not user.email_verified:
             return Response({'message': 'Errors', 'errors': {'email': ['Please check your email to confirm your account or resend confirmation email.']}}, status=status.HTTP_400_BAD_REQUEST)
@@ -317,12 +321,12 @@ class ArtistLogin(APIView):
         user.save()
 
         # Determine next onboarding step
-        artist.onboarding_step = artist.get_next_onboarding_step()
-        artist.save()
+        publisher.onboarding_step = publisher.get_next_onboarding_step()
+        publisher.save()
 
         data = {
             "user_id": user.user_id,
-            "artist_id": artist.artist_id,
+            "publisher_id": publisher.publisher_id,
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
@@ -330,12 +334,15 @@ class ArtistLogin(APIView):
             "country": user.country,
             "phone": user.phone,
             "token": token.key,
-            "onboarding_step": artist.onboarding_step,
+            "onboarding_step": publisher.onboarding_step,
         }
 
-        AllActivity.objects.create(user=user, subject="Artist Login", body=f"{user.email} just logged in.")
+        AllActivity.objects.create(user=user, subject="Publisher Login", body=f"{user.email} just logged in.")
 
         return Response({'message': 'Successful', 'data': data}, status=status.HTTP_200_OK)
+
+
+
 
 
 def check_password(email, password):
@@ -347,35 +354,31 @@ def check_password(email, password):
         return False
 
 
-
-
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
-from rest_framework.response import Response
-from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def complete_artist_profile_view(request):
+def complete_publisher_profile_view(request):
     payload = {}
     data = {}
     errors = {}
 
-    artist_id = request.data.get('artist_id', "")
+    publisher_id = request.data.get('publisher_id', "")
     bio = request.data.get('bio', "")
     country = request.data.get('country', "")
     region = request.data.get('region', "")
     photo = request.data.get('photo', "")
 
-    if not artist_id:
-        errors['artist_id'] = ['Artist ID is required.']
+    if not publisher_id:
+        errors['publisher_id'] = ['PublisherProfile ID is required.']
 
     try:
-        artist = Artist.objects.get(artist_id=artist_id)
-    except Artist.DoesNotExist:
-        errors['artist_id'] = ['Artist not found.']
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['PublisherProfile not found.']
 
     if errors:
         payload['message'] = "Errors"
@@ -384,51 +387,52 @@ def complete_artist_profile_view(request):
 
     # Apply changes if provided
     if bio:
-        artist.bio = bio
+        publisher.bio = bio
     if country:
-        artist.country = country
+        publisher.country = country
     if region:
-        artist.region = region
+        publisher.region = region
     if photo:
-        artist.photo = photo
+        publisher.photo = photo
 
     # Mark this step as complete
-    artist.profile_completed = True
+    publisher.profile_completed = True
 
     # Move to next onboarding step
-    artist.onboarding_step = artist.get_next_onboarding_step()
-    artist.save()
+    publisher.onboarding_step = publisher.get_next_onboarding_step()
+    publisher.save()
 
-    data["artist_id"] = artist.artist_id
-    data["next_step"] = artist.onboarding_step
+    data["publisher_id"] = publisher.publisher_id
+    data["next_step"] = publisher.onboarding_step
 
     payload['message'] = "Successful"
     payload['data'] = data
     return Response(payload, status=status.HTTP_200_OK)
 
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def complete_artist_social_view(request):
+def complete_revenue_split_view(request):
     payload = {}
     data = {}
     errors = {}
 
-    artist_id = request.data.get('artist_id', "")
-    facebook = request.data.get('facebook', "")
-    twitter = request.data.get('twitter', "")
-    instagram = request.data.get('instagram', "")
-    youtube = request.data.get('youtube', "")
+    publisher_id = request.data.get('publisher_id', "")
+    writer_split = request.data.get('writer_split', "")
+    publisher_split = request.data.get('publisher_split', "")
 
-    if not artist_id:
-        errors['artist_id'] = ['Artist ID is required.']
+    if not publisher_id:
+        errors['publisher_id'] = ['PublisherProfile ID is required.']
+    if not writer_split:
+        errors['writer_split'] = ['Writer Split is required.']
+    if not publisher_split:
+        errors['publisher_split'] = ['Publisher Split is required.']
 
     try:
-        artist = Artist.objects.get(artist_id=artist_id)
-    except Artist.DoesNotExist:
-        errors['artist_id'] = ['Artist not found.']
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['PublisherProfile not found.']
 
     if errors:
         payload['message'] = "Errors"
@@ -436,51 +440,97 @@ def complete_artist_social_view(request):
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
     # Apply changes if provided
-    if facebook:
-        artist.facebook = facebook
-    if twitter:
-        artist.twitter = twitter
-    if instagram:
-        artist.instagram = instagram
-    if youtube:
-        artist.youtube = youtube
+    if publisher_split:
+        publisher.publisher_split = publisher_split
+    if writer_split:
+        publisher.writer_split = writer_split
 
     # Mark this step as complete
-    artist.social_media_added = True
+    publisher.revenue_split_completed = True
 
     # Move to next onboarding step
-    artist.onboarding_step = artist.get_next_onboarding_step()
-    artist.save()
+    publisher.onboarding_step = publisher.get_next_onboarding_step()
+    publisher.save()
 
-    data["artist_id"] = artist.artist_id
-    data["next_step"] = artist.onboarding_step
+    data["publisher_id"] = publisher.publisher_id
+    data["next_step"] = publisher.onboarding_step
 
     payload['message'] = "Successful"
     payload['data'] = data
     return Response(payload, status=status.HTTP_200_OK)
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def complete_link_artist_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    publisher_id = request.data.get('publisher_id', "")
+    bio = request.data.get('bio', "")
+    country = request.data.get('country', "")
+    region = request.data.get('region', "")
+    photo = request.data.get('photo', "")
+
+    if not publisher_id:
+        errors['publisher_id'] = ['PublisherProfile ID is required.']
+
+    try:
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['PublisherProfile not found.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Apply changes if provided
+    if bio:
+        publisher.bio = bio
+    if country:
+        publisher.country = country
+    if region:
+        publisher.region = region
+    if photo:
+        publisher.photo = photo
+
+    # Mark this step as complete
+    publisher.profile_completed = True
+
+    # Move to next onboarding step
+    publisher.onboarding_step = publisher.get_next_onboarding_step()
+    publisher.save()
+
+    data["publisher_id"] = publisher.publisher_id
+    data["next_step"] = publisher.onboarding_step
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def complete_artist_payment_view(request):
+def complete_publisher_payment_view(request):
     payload = {}
     data = {}
     errors = {}
 
-    artist_id = request.data.get('artist_id', "")
+    publisher_id = request.data.get('publisher_id', "")
     momo = request.data.get('momo', "")
     bankAccount = request.data.get('bankAccount', "")
 
-    if not artist_id:
-        errors['artist_id'] = ['Artist ID is required.']
+    if not publisher_id:
+        errors['publisher_id'] = ['Publisher ID is required.']
 
     try:
-        artist = Artist.objects.get(artist_id=artist_id)
-    except Artist.DoesNotExist:
-        errors['artist_id'] = ['Artist not found.']
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['Publisher not found.']
 
     if errors:
         payload['message'] = "Errors"
@@ -489,19 +539,19 @@ def complete_artist_payment_view(request):
 
     # Apply changes if provided
     if momo:
-        artist.momo_account = momo
+        publisher.momo_account = momo
     if bankAccount:
-        artist.bank_account = bankAccount
+        publisher.bank_account = bankAccount
 
     # Mark this step as complete
-    artist.payment_info_added = True
+    publisher.payment_info_added = True
 
     # Move to next onboarding step
-    artist.onboarding_step = artist.get_next_onboarding_step()
-    artist.save()
+    publisher.onboarding_step = publisher.get_next_onboarding_step()
+    publisher.save()
 
-    data["artist_id"] = artist.artist_id
-    data["next_step"] = artist.onboarding_step
+    data["publisher_id"] = publisher.publisher_id
+    data["next_step"] = publisher.onboarding_step
 
     payload['message'] = "Successful"
     payload['data'] = data
@@ -512,81 +562,19 @@ def complete_artist_payment_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def complete_artist_publisher_view(request):
+def onboard_publisher_view(request):
     payload = {}
     data = {}
     errors = {}
 
-    artist_id = request.data.get('artist_id', "")
     publisher_id = request.data.get('publisher_id', "")
-    self_publish = request.data.get('self_publish', "")
-
-    if not artist_id:
-        errors['artist_id'] = ['Artist ID is required.']
+    if not publisher_id:
+        errors['publisher_id'] = ['Publisher ID is required.']
 
     try:
-        artist = Artist.objects.get(artist_id=artist_id)
-    except Artist.DoesNotExist:
-        errors['artist_id'] = ['Artist not found.']
-
-    if errors:
-        payload['message'] = "Errors"
-        payload['errors'] = errors
-        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
-
-    # Apply changes if provided
-    if self_publish == True:
-        artist.self_publish = True
-    else:
-        if publisher_id:
-            try:
-                publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
-                artist.publisher = publisher
-            except PublisherProfile.DoesNotExist:
-                errors['publisher_id'] = ['Publisher not found.']
-
-            if errors:
-                payload['message'] = "Errors"
-                payload['errors'] = errors
-                return Response(payload, status=status.HTTP_400_BAD_REQUEST)
-            
-    # Mark this step as complete
-    artist.publisher_added = True
-
-    # Move to next onboarding step
-    artist.onboarding_step = artist.get_next_onboarding_step()
-    artist.save()
-
-    data["artist_id"] = artist.artist_id
-    data["next_step"] = artist.onboarding_step
-
-    payload['message'] = "Successful"
-    payload['data'] = data
-    return Response(payload, status=status.HTTP_200_OK)
-
-
-
-
-
-
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-@authentication_classes([TokenAuthentication])
-def onboard_artist_view(request):
-    payload = {}
-    data = {}
-    errors = {}
-
-    artist_id = request.data.get('artist_id', "")
-    if not artist_id:
-        errors['artist_id'] = ['Artist ID is required.']
-
-    try:
-        artist = Artist.objects.get(artist_id=artist_id)
-    except Artist.DoesNotExist:
-        errors['artist'] = ['Artist not found.']
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['Publisher not found.']
 
     if errors:
         payload['message'] = "Errors"
@@ -600,36 +588,21 @@ def onboard_artist_view(request):
     for field in fields_to_update:
         value = request.data.get(field)
         if value is not None:
-            setattr(artist, field, value)
+            setattr(publisher, field, value)
 
-    artist.save()
+    publisher.save()
+
+    # Check Profile complete
+    ##
 
 
-    # Check if fields are not null to complete profile
-    if not artist.name or not artist.stage_name or not artist.bio or not artist.profile_image:
-        errors['profile'] = ['Please complete your profile.']
-    if not artist.spotify_url or not artist.shazam_url:
-        errors['links'] = ['Please provide your Spotify and Shazam links.'] 
-    if not artist.instagram or not artist.twitter:
-        errors['social'] = ['Please provide your Instagram and Twitter links.']
-    if not artist.contact_email:
-        errors['contact_email'] = ['Contact email is required.']
-    if errors:
-        payload['message'] = "Errors"
-        payload['errors'] = errors
-        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
-    artist.profile_completed = True
-    artist.save()
-
-    
-    data["user_id"] = artist.user.user_id
-    data["email"] = artist.user.email
-    data["artist_id"] = artist.id
-    data["name"] = artist.name
+    data["publisher_id"] = publisher.id
+    data["name"] = publisher.name
 
     payload['message'] = "Successful"
     payload['data'] = data
     return Response(payload)
+
 
 
 
@@ -638,19 +611,19 @@ def onboard_artist_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def logout_artist_view(request):
+def logout_publisher_view(request):
     payload = {}
     data = {}
     errors = {}
 
-    artist_id = request.data.get('artist_id', "")
-    if not artist_id:
-        errors['artist_id'] = ['Artist ID is required.']
+    publisher_id = request.data.get('publisher_id', "")
+    if not publisher_id:
+        errors['publisher_id'] = ['Publisher ID is required.']
 
     try:
-        artist = Artist.objects.get(artist_id=artist_id)
-    except Artist.DoesNotExist:
-        errors['artist_id'] = ['Artist not found.']
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['Publisher not found.']
 
     if errors:
         payload['message'] = "Errors"
@@ -659,17 +632,14 @@ def logout_artist_view(request):
     
 
     new_activity = AllActivity.objects.create(
-        user=artist.user,
+        user=publisher.user,
         type="Authentication",
-        subject="Artist Log out",
-        body=artist.user.email + " Just logged out of the account."
+        subject="Publisher Log out",
+        body=publisher.user.email + " Just logged out of the account."
     )
     new_activity.save()
 
     payload['message'] = "Successful"
     payload['data'] = data
     return Response(payload)
-
-
-
 

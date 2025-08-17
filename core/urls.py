@@ -8,6 +8,7 @@ urlpatterns = [
     path('api/accounts/', include('accounts.api.urls', 'accounts_api')),
     path('api/artists/', include('artists.urls', 'artists_api')),
     path('api/stations/', include('stations.urls', 'stations_api')),
+    path('api/publishers/', include('publishers.urls', 'publishers_api')),
     path('api/fan/', include('fan.urls', 'fan_api')),
     path('api/mr-admin/', include('mr_admin.urls', 'mr_admin_api')),
     path('api/music-monitor/', include('music_monitor.urls', 'music_monitor_api')),

@@ -71,8 +71,9 @@ INSTALLED_APPS = [
     "music_monitor",
     "streamer",
     "fan",
-    "storages",
-    "notifications"
+    #"storages",
+    "notifications",
+    "publishers"
 ]
 
 
