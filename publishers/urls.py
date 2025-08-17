@@ -2,7 +2,7 @@
 
 from django.urls import path
 
-from publishers.views.managed_artist_views import get_all_managed_artists_view
+from publishers.views.managed_artist_views import get_all_managed_artists_view, get_managed_artist_details_view
 from publishers.views.publisher_hompage import get_publisher_homedata
 
 

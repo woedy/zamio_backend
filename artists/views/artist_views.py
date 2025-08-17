@@ -348,7 +348,7 @@ from django.db.models import Sum, Count, Q, F
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
-def get_managed_artist_details_view(request):
+def get_artist_profile_view(request):
     payload, data, errors = {}, {}, {}
 
     artist_id = request.query_params.get('artist_id')

@@ -193,6 +193,7 @@ def get_publisher_homedata(request):
         "fanEngagement": fan_engagement
     }
 
+
     data.update({
         "period": 'custom' if sd_str and ed_str else period,
         "start_date": sd_str,
