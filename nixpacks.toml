@@ -12,7 +12,9 @@ nixPkgs = [
   "pkg-config",
   "postgresql",
   "blas",
-  "lapack"
+  "lapack",
+  "bash"
+
 ]
 
 [phases.install]
