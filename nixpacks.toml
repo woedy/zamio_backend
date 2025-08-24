@@ -13,14 +13,12 @@ nixPkgs = [
   "postgresql",
   "blas",
   "lapack",
+  "bash",
+  "coreutils",
   "findutils",
   "gnused",
   "gnugrep"
 ]
-
-# Force runtime packages to always be installed in the final container
-[packages]
-runtime = ["bashInteractive", "coreutils"]
 
 [phases.install]
 cmds = [
@@ -37,7 +35,7 @@ cmds = [
 ]
 
 [start]
-cmd = "bash -c '/opt/venv/bin/gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 core.wsgi:application'"
+cmd = "/opt/venv/bin/gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 core.wsgi:application"
 
 [variables]
 PYTHONUNBUFFERED = "1"
