@@ -34,10 +34,6 @@ cmds = [
   "/opt/venv/bin/python manage.py migrate --noinput"
 ]
 
-# Ensure shell is properly set up
-[phases.setup]
-nixLibs = ["bash", "coreutils"]
-
 [start]
 cmd = "/opt/venv/bin/gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 core.wsgi:application"
 
