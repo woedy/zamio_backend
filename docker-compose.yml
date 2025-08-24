@@ -1,141 +1,68 @@
 services:
-  # Redis
-  redis:
-    image: redis:alpine
-    container_name: zamio_redis
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  # Database Postgres
   db:
-    image: postgres
+    image: postgres:14
+    environment:
+      POSTGRES_DB: zamio_postgres
+      POSTGRES_USER: zamio_postgres
+      POSTGRES_PASSWORD: zamio_postgres
     volumes:
       - ./data/db:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=zamio_postgres
-      - POSTGRES_USER=zamio_postgres
-      - POSTGRES_PASSWORD=zamio_postgres
-    container_name: zamio_postgres_db
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zamio_postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Django Application
+  redis:
+    image: redis:alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   zamio_app:
-    build:
-      context: .
+    build: .
     volumes:
       - .:/zamio_django
-      - ./static_cdn:/var/lib/static_cdn
+      - static_cdn:/var/lib/static_cdn
     ports:
-      - "6161:6161"
-    container_name: zamio_app
-    command: python manage.py runserver 0.0.0.0:6161
+      - "6161:8000"   # 8000 inside container, 6161 outside
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.settings
     depends_on:
       db:
         condition: service_healthy
-    healthcheck:
-      disable: true   # 👈 disable healthcheck completely
+      redis:
+        condition: service_healthy
 
-  # React Frontend Application
+  celery:
+    build: .
+    command: celery -A core worker -l INFO
+    volumes:
+      - .:/zamio_django
+    depends_on:
+      - db
+      - redis
+
+  celery-beat:
+    build: .
+    command: celery -A core beat -l INFO
+    volumes:
+      - .:/zamio_django
+    depends_on:
+      - db
+      - redis
+
   zamio_frontend:
     build:
       context: ../zamio_frontend
-      dockerfile: Dockerfile
     ports:
       - "4173:4173"
-    container_name: zamio_frontend
     volumes:
-      - ../zamio_frontend:/zamio_frontend_pro
-      - /zamio_frontend_pro/node_modules
+      - ../zamio_frontend:/zamio_frontend
+      - /zamio_frontend/node_modules
     environment:
-      - CHOKIDAR_USEPOLLING=true
       - VITE_API_URL=http://localhost:6161
     depends_on:
       - zamio_app
-
-  zamio_stations:
-    build:
-      context: ../zamio_stations
-      dockerfile: Dockerfile
-    ports:
-      - "4174:4174"
-    container_name: zamio_stations
-    volumes:
-      - ../zamio_stations:/zamio_stations_pro
-      - /zamio_stations_pro/node_modules
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://localhost:6161
-    depends_on:
-      - zamio_app 
-
-  zamio_publisher:
-    build:
-      context: ../zamio_publisher
-      dockerfile: Dockerfile
-    ports:
-      - "4175:4175"
-    container_name: zamio_publisher
-    volumes:
-      - ../zamio_publisher:/zamio_publisher_pro
-      - /zamio_publisher_pro/node_modules
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://localhost:6161
-
-  zamio_admin:
-    build:
-      context: ../zamio_admin
-      dockerfile: Dockerfile
-    ports:
-      - "4176:4176"
-    container_name: zamio_admin
-    volumes:
-      - ../zamio_admin:/zamio_admin_pro
-      - /zamio_admin_pro/node_modules
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://localhost:6161
-    depends_on:
-      - zamio_app
-
-  # Celery Worker
-  celery:
-    restart: always
-    build:
-      context: .
-    command: celery -A core worker -l DEBUG
-    volumes:
-      - .:/zamio_django
-    container_name: zamio_celery
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      # zamio_app removed from health dependency
-
-  # Celery Beat
-  celery-beat:
-    restart: always
-    build:
-      context: .
-    command: celery -A core beat -l DEBUG
-    volumes:
-      - .:/zamio_django
-    container_name: zamio_celery_beat
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      # zamio_app removed from health dependency
-
-volumes:
-  static_cdn:
