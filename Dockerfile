@@ -1,11 +1,12 @@
-FROM python:3.8-slim
+# Dockerfile
+FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/root/.local/bin:$PATH"
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libffi-dev \
     libpq-dev \
@@ -14,17 +15,18 @@ RUN apt-get update && apt-get install -y \
     bash \
     curl \
     git \
-    && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /zamio_django
 
-# Install Python dependencies
+# Python deps first (cache friendly)
 COPY requirements.txt .
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements.txt
+RUN pip install --upgrade pip setuptools wheel \
+ && pip install -r requirements.txt
 
-# Copy project
+# App code
 COPY . .
 
-# Run with Daphne (ASGI, recommended for channels)
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
+# Entrypoint will handle migrate/collectstatic/start
+COPY entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

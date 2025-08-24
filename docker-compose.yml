@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   db:
     image: postgres:14
@@ -6,7 +8,7 @@ services:
       POSTGRES_USER: zamio_postgres
       POSTGRES_PASSWORD: zamio_postgres
     volumes:
-      - ./data/db:/var/lib/postgresql/data
+      - dbdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zamio_postgres"]
       interval: 10s
@@ -21,48 +23,62 @@ services:
       timeout: 3s
       retries: 5
 
-  zamio_app:
+  web:
     build: .
-    volumes:
-      - .:/zamio_django
-      - static_cdn:/var/lib/static_cdn
-    ports:
-      - "6161:8000"   # 8000 inside container, 6161 outside
+    # no code bind mount in prod
     environment:
-      - DJANGO_SETTINGS_MODULE=core.settings
+      DJANGO_SETTINGS_MODULE: core.settings
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: "False"
+      DATABASE_URL: postgres://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
+      REDIS_URL: redis://redis:6379/0
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # For first test via port; later remove this and use Coolify domain
+    ports:
+      - "6161:8000"
+    volumes:
+      - static_cdn:/zamio_django/static_cdn
+      - media:/zamio_django/media
+
+  celery:
+    build: .
+    command: celery -A core worker -l INFO
+    environment:
+      DJANGO_SETTINGS_MODULE: core.settings
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: "False"
+      DATABASE_URL: postgres://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
+      REDIS_URL: redis://redis:6379/0
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
 
-  celery:
-    build: .
-    command: celery -A core worker -l INFO
-    volumes:
-      - .:/zamio_django
-    depends_on:
-      - db
-      - redis
-
   celery-beat:
     build: .
     command: celery -A core beat -l INFO
-    volumes:
-      - .:/zamio_django
+    environment:
+      DJANGO_SETTINGS_MODULE: core.settings
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: "False"
+      DATABASE_URL: postgres://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
+      REDIS_URL: redis://redis:6379/0
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
-  #zamio_frontend:
-  #  build:
-  #    context: ../zamio_frontend
-  #  ports:
-  #    - "4173:4173"
-  #  volumes:
-  #    - ../zamio_frontend:/zamio_frontend
-  #    - /zamio_frontend/node_modules
-  #  environment:
-  #    - VITE_API_URL=http://localhost:6161
-  #  depends_on:
-  #    - zamio_app
+volumes:
+  dbdata:
+  static_cdn:
+  media:
