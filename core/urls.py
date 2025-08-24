@@ -25,7 +25,7 @@ urlpatterns = [
     path("api/notifications/", include("notifications.api.urls")),
     path("api/publishers/", include("publishers.urls")),
     path("api/stations/", include("stations.urls")),
-    path("api/streamer/", include("streamer.urls")),
+    #path("api/streamer/", include("streamer.urls")),
 ]
 
 if settings.DEBUG:

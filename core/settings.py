@@ -73,7 +73,7 @@ INSTALLED_APPS = [
     "mr_admin",
     "stations",
     "music_monitor",
-    "streamer",
+    #"streamer",
     "fan",
     #"storages",
     "notifications",
