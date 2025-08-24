@@ -25,7 +25,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  web:
+  zamio_app:
     build: .
     command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
     expose:
@@ -43,7 +43,7 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/0
 
       # Wildcard domain
-      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,web"
+      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
       CSRF_TRUSTED_ORIGINS: "https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
 
     volumes:
@@ -71,7 +71,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,web"
+      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
       CSRF_TRUSTED_ORIGINS: "https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
     volumes:
       - .:/zamio_django
@@ -92,7 +92,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,web"
+      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
       CSRF_TRUSTED_ORIGINS: "https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
     volumes:
       - .:/zamio_django
