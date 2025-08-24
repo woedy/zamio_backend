@@ -269,9 +269,6 @@ def unarchive_album(request):
 
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-@authentication_classes([TokenAuthentication])
 def delete_album(request):
     payload = {}
     errors = {}
@@ -295,8 +292,6 @@ def delete_album(request):
 
     payload['message'] = "Deleted successfully"
     return Response(payload)
-
-
 
 
 @api_view(['GET'])

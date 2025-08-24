@@ -1,5 +1,6 @@
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
+from publishers.models import PublisherProfile
 from rest_framework import status
 from rest_framework.decorators import permission_classes, api_view, authentication_classes
 from rest_framework.permissions import IsAuthenticated
@@ -873,6 +874,85 @@ def get_all_artist_notifications_view(request):
     payload['data'] = data
     return Response(payload, status=status.HTTP_200_OK)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def get_all_publisher_notifications_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    search_query = request.query_params.get('search', '').strip()
+    page_number = int(request.query_params.get('page', 1))
+    publisher_id = request.query_params.get('publisher_id', '')
+    order_by = request.query_params.get('order_by', '')
+    page_size = 10
+
+    # Step 1: Validate artist
+    try:
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['station'] = ['PublisherProfile not found.']
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Step 2: Fetch notifications
+    notifications_qs = Notification.objects.filter(
+        user=publisher.user,
+        is_archived=False
+    )
+
+    # Step 3: Search filter
+    if search_query:
+        notifications_qs = notifications_qs.filter(
+            Q(title__icontains=search_query) | Q(message__icontains=search_query)
+        )
+
+    # Step 4: Ordering
+    if order_by:
+        order_map = {
+            "Title": "title",
+            "Newest": "-created_at",
+            "Oldest": "created_at",
+            "Type": "type"
+        }
+        notifications_qs = notifications_qs.order_by(order_map.get(order_by, "-created_at"))
+    else:
+        notifications_qs = notifications_qs.order_by("-created_at")
+
+    # Step 5: Paginate
+    paginator = Paginator(notifications_qs, page_size)
+    try:
+        page = paginator.page(page_number)
+    except PageNotAnInteger:
+        page = paginator.page(1)
+    except EmptyPage:
+        page = paginator.page(paginator.num_pages)
+
+    # Step 6: Format data
+    from django.utils.timesince import timesince
+    formatted_notifications = []
+    for notification in page.object_list:
+        formatted_notifications.append({
+            "id": notification.id,
+            "type": notification.type,
+            "title": notification.title,
+            "message": notification.message,
+            "timestamp": timesince(notification.created_at) + " ago" if notification.created_at else "Just now"
+        })
+
+    data['notifications'] = formatted_notifications
+    data['pagination'] = {
+        'page_number': page.number,
+        'total_pages': paginator.num_pages,
+        'next': page.next_page_number() if page.has_next() else None,
+        'previous': page.previous_page_number() if page.has_previous() else None,
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])

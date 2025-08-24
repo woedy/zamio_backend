@@ -1,12 +1,28 @@
-FROM python:3.8-alpine
+FROM python:3.8-slim
 
 ENV PYTHONUNBUFFERED=1
 
-RUN apk update && \
-    apk add libffi-dev zlib-dev jpeg-dev postgresql-dev gcc python3-dev musl-dev
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libffi-dev \
+    libpq-dev \
+    libsndfile1 \
+    bash \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /god_bless_django
+WORKDIR /zamio_django
 
+# Copy requirements first for caching
 COPY requirements.txt requirements.txt
 
-RUN pip3 install -r requirements.txt
+# Upgrade pip & install dependencies
+RUN pip install --upgrade pip setuptools wheel \
+    && pip install -r requirements.txt
+
+# Copy project files
+COPY . .
+
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

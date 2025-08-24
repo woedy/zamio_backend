@@ -1,8 +1,8 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from publishers.models import Publisher
 from music_monitor.models import MatchCache, PlayLog, StreamLog
+from .models import PublisherProfile, PublishingAgreement
 
 
 User = get_user_model()
@@ -16,7 +16,7 @@ class AllPublishersSerializer(serializers.ModelSerializer):
 
 
     class Meta:
-        model = Publisher
+        model = PublisherProfile
         fields = ["publisher_id", "stage_name","total_earnings", "photo", "registered_on"]
 
     def get_photo(self, obj):
@@ -29,78 +29,8 @@ class AllPublishersSerializer(serializers.ModelSerializer):
 class PublisherDetailsSerializer(serializers.ModelSerializer):
 
     class Meta:
-        model = Publisher
+        model = PublisherProfile
         fields = "__all__"
-
-
-
-from rest_framework import serializers
-from .models import Genre, Album, Track, Contributor, PlatformAvailability
-
-# Genre Serializer
-class GenreSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Genre
-        fields = ['id', 'name']
-
-# Album Serializer
-class AlbumSerializer(serializers.ModelSerializer):
-    publisher_name = serializers.CharField(source='publisher.name', read_only=True)  # To include publisher name in the response
-
-    class Meta:
-        model = Album
-        fields = ['id', 'title', 'publisher_name']
-
-# Track Serializer
-class TrackSerializer(serializers.ModelSerializer):
-    publisher_name = serializers.CharField(source='publisher.stage_name', read_only=True)  # To include publisher name in the response
-    album_title = serializers.CharField(source='album.title', read_only=True)  # To include album title in the response
-    genre_name = serializers.CharField(source='genre.name', read_only=True)  # To include genre name in the response
-    airplays = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Track
-        fields = '__all__'
-
-    def get_airplays(self, obj):
-        play_log_count = PlayLog.objects.filter(track=obj).count()
-        stream_count = StreamLog.objects.filter(track=obj).count()
-
-
-        return play_log_count + stream_count
-
-    
-
-
-
-
-class TrackDetailsSerializer(serializers.ModelSerializer):
-    publisher_name = serializers.CharField(source='publisher.stage_name', read_only=True)  # To include publisher name in the response
-    album_title = serializers.CharField(source='album.title', read_only=True)  # To include album title in the response
-    genre_name = serializers.CharField(source='genre.name', read_only=True)  # To include genre name in the response
-
-    class Meta:
-        model = Track
-        fields = '__all__'
-
-
-
-
-# Contributor Serializer
-class ContributorSerializer(serializers.ModelSerializer):
-    track_title = serializers.CharField(source='track.title', read_only=True)  # To include track title in the response
-
-    class Meta:
-        model = Contributor
-        fields = '__all__'
-
-# PlatformAvailability Serializer
-class PlatformAvailabilitySerializer(serializers.ModelSerializer):
-    track_title = serializers.CharField(source='track.title', read_only=True)  # To include track title in the response
-
-    class Meta:
-        model = PlatformAvailability
-        fields = '__all__'
 
 
 
@@ -142,3 +72,13 @@ class PublisherMatchCacheSerializer(serializers.ModelSerializer):
 
     def get_matched_at(self, obj):
         return obj.matched_at.strftime('%Y-%m-%d ~ %H:%M:%S')
+    
+
+
+
+
+
+class PublishingAgreementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PublishingAgreement
+        fields = ['id', 'publisher', 'songwriter', 'track', 'writer_share', 'publisher_share', 'contract_file', 'verified_by_admin', 'agreement_date', 'status', 'is_archived', 'active', 'created_at', 'updated_at']

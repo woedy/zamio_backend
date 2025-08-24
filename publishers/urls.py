@@ -3,7 +3,10 @@
 from django.urls import path
 
 from publishers.views.managed_artist_views import get_all_managed_artists_view, get_managed_artist_details_view
+from publishers.views.publisher_contracts_view import get_all_artist_contracts_view, get_contract_detail_view
 from publishers.views.publisher_hompage import get_publisher_homedata
+from publishers.views.publisher_match_logs import get_all_artist_playlog_for_publisher_view
+from publishers.views.publisher_view import get_publisher_profile_view
 
 
 app_name = 'publishers'
@@ -21,6 +24,17 @@ urlpatterns = [
     path('dashboard/', get_publisher_homedata, name='get_publisher_homedata'),
     path('all-managed-artists/', get_all_managed_artists_view, name='get_all_managed_artists'),
     path('managed-artist-details/', get_managed_artist_details_view, name='get_managed_artist_details_view'),
+    path('playlogs/', get_all_artist_playlog_for_publisher_view, name='get_all_artist_playlog_for_publisher_view'),
+    path('all-contracts/', get_all_artist_contracts_view, name='get_all_artist_contracts_view'),
+    path('contract-details/', get_contract_detail_view, name='get_contract_detail_view'),
+    
+    path('publisher-profile/', get_publisher_profile_view, name='get_publisher_profile_view'),
+    
+
+
+
+
+
 
 
 ]

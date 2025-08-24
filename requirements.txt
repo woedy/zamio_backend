@@ -19,6 +19,8 @@ librosa
 faker
 django-storages[boto3]
 django-redis
+xxhash
+matplotlib
 
 #numpy scipy pydub audioread matplotlib librosa
 #librosa numba xxhash

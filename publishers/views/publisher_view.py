@@ -365,99 +365,17 @@ def get_publisher_profile_view(request):
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    tracks = Track.objects.filter(publisher=publisher, is_archived=False)
 
     # PublisherProfile info
     publisherData = {
         "name": f"{publisher.user.first_name or ''} {publisher.user.last_name or ''}".strip(),
-        "stageName": publisher.stage_name,
-        "bio": publisher.bio,
-        "avatar": publisher.user.photo.url if publisher.user.photo else None,
-        "coverImage": None,
-        "verified": publisher.verified,
-        "followers": publisher.followers.count(),
-        "totalPlays": PlayLog.objects.filter(track__in=tracks).count() + StreamLog.objects.filter(track__in=tracks).count(),
-        "totalEarnings": float(BankAccount.objects.filter(user=publisher.user).aggregate(Sum('balance'))['balance__sum'] or 0),
-        "joinDate": publisher.created_at.date().isoformat(),
-        "location": publisher.location_name or f"{publisher.city}, {publisher.country}" if hasattr(publisher, 'country') else "",
-        "genres": list(publisher.publisher_genre.filter(is_archived=False).values_list('genre__name', flat=True).distinct()),
-        "contact": {
-            "email": publisher.contact_email,
-            "phone": publisher.user.phone,
-            "instagram": publisher.instagram,
-            "twitter": publisher.twitter,
-            "facebook": None,
-        }
+   
     }
 
-    # Songs list
-    songs = []
-    for t in tracks:
-        plays_count = PlayLog.objects.filter(track=t).count() + StreamLog.objects.filter(track=t).count()
-        earnings = (PlayLog.objects.filter(track=t).aggregate(Sum('royalty_amount'))['royalty_amount__sum'] or 0) + \
-                   (StreamLog.objects.filter(track=t).aggregate(Sum('royalty_amount'))['royalty_amount__sum'] or 0)
-        contributors = Contributor.objects.filter(track=t, is_archived=False)
-        songs.append({
-            "id": t.id,
-            "title": t.title,
-            "duration": str(t.duration) if t.duration else None,
-            "releaseDate": t.release_date.isoformat() if t.release_date else None,
-            "totalPlays": plays_count,
-            "totalEarnings": float(earnings),
-            "status": "Active" if t.active else "Inactive",
-            "album": t.album.title if t.album else None,
-            "genre": t.genre.name if t.genre else None,
-            "contributors": [{"name": c.name, "role": c.role, "percentage": float(c.percent_split)} for c in contributors],
-            "recentPlays": [
-                {
-                    "station": log.station.name,
-                    "date": log.played_at.strftime("%Y-%m-%d"),
-                    "plays": 1,
-                    "earnings": float(log.royalty_amount or 0)
-                }
-                for log in PlayLog.objects.filter(track=t).order_by('-played_at')[:3]
-            ]
-        })
 
-    # Royalty history (mix of radio & streaming with status via transaction or claimed flag)
-    radio_logs = PlayLog.objects.filter(track__in=tracks).order_by('-played_at')[:10]
-    streaming_logs = StreamLog.objects.filter(track__in=tracks).order_by('-played_at')[:10]
-    royaltyHistory = []
-    for log in radio_logs:
-        royaltyHistory.append({
-            "date": log.played_at.strftime("%Y-%m-%d"),
-            "amount": float(log.royalty_amount or 0),
-            "source": "Radio Airplay",
-            "status": "Paid" if log.claimed else "Pending"
-        })
-    for log in streaming_logs:
-        royaltyHistory.append({
-            "date": log.played_at.strftime("%Y-%m-%d"),
-            "amount": float(log.royalty_amount or 0),
-            "source": "Streaming",
-            "status": "Paid" if log.claimed else "Pending"
-        })
-    royaltyHistory = sorted(royaltyHistory, key=lambda x: x['date'], reverse=True)[:10]
-
-    # Recent play logs combined
-    playlogs_qs = PlayLog.objects.filter(track__in=tracks).order_by('-played_at')[:5]
-    playLogs = [
-        {
-            "id": log.id,
-            "song": log.track.title,
-            "station": log.station.name,
-            "date": log.played_at.strftime("%Y-%m-%d %H:%M"),
-            "duration": str(get_duration(log.duration)) if log.duration else None,
-            "confidence": float(log.avg_confidence_score or 0),
-            "earnings": float(log.royalty_amount or 0)
-        } for log in playlogs_qs
-    ]
 
     data.update({
         "publisherData": publisherData,
-        "songs": songs,
-        "royaltyHistory": royaltyHistory,
-        "playLogs": playLogs
     })
 
     payload['message'] = "Successful"
