@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python39", "postgresql", "redis", "ffmpeg", "libsndfile1", "build-essential", "libffi-dev", "libpq-dev"]
+nixPkgs = ["python39", "ffmpeg", "libsndfile1", "gcc", "libffi"]
 
 [phases.install]
 cmds = [

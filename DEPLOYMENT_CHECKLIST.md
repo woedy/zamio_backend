@@ -3,10 +3,8 @@
 ## ✅ Pre-Deployment Verification
 
 ### 1. **Configuration Files** ✅
-- [x] `nixpacks.toml` - Build configuration for Coolify
-- [x] `Dockerfile` - Production-ready with Gunicorn
+- [x] `nixpacks.toml` - Build configuration for Coolify (Nixpacks-only deployment)
 - [x] `requirements.txt` - All dependencies including `python-dotenv` and `dj-database-url`
-- [x] `.dockerignore` - Optimized build context
 - [x] `core/settings.py` - Environment variable support
 - [x] `core/urls.py` - Health check endpoint at `/health/`
 
@@ -67,8 +65,8 @@ EMAIL_HOST_PASSWORD=your-app-password
    - Push your code to your Git repository
    - Coolify will automatically detect the `nixpacks.toml` file
    - The build process will:
-     - Install system dependencies (ffmpeg, libsndfile1, etc.)
-     - Install Python dependencies
+     - Install Nix system dependencies (ffmpeg, libsndfile1, gcc, libffi)
+     - Install Python dependencies from requirements.txt
      - Run database migrations
      - Collect static files
      - Start with Gunicorn
