@@ -1,7 +1,5 @@
 [phases.setup]
 nixPkgs = [
-  "bashInteractive",   # ensures interactive bash shell is available
-  "coreutils",         # common shell utilities (ls, cat, etc.)
   "python310",
   "python310Packages.pip",
   "python310Packages.setuptools",
@@ -14,7 +12,12 @@ nixPkgs = [
   "pkg-config",
   "postgresql",
   "blas",
-  "lapack"
+  "lapack",
+  "bash",
+  "coreutils",
+  "findutils",
+  "gnused",
+  "gnugrep"
 ]
 
 [phases.install]
@@ -31,6 +34,10 @@ cmds = [
   "/opt/venv/bin/python manage.py migrate --noinput"
 ]
 
+# Ensure shell is properly set up
+[phases.setup]
+nixLibs = ["bash", "coreutils"]
+
 [start]
 cmd = "/opt/venv/bin/gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 core.wsgi:application"
 
@@ -38,3 +45,4 @@ cmd = "/opt/venv/bin/gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 cor
 PYTHONUNBUFFERED = "1"
 VIRTUAL_ENV = "/opt/venv"
 PATH = "/opt/venv/bin:$PATH"
+SHELL = "/bin/bash"
