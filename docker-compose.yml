@@ -2,17 +2,14 @@ version: "3.9"
 
 services:
   db:
-    image: postgres:15
-    container_name: zamio_db
-    restart: always
+    image: postgres
+    container_name: zamio_postgres_db
     environment:
-      POSTGRES_USER: zamio_postgres
-      POSTGRES_PASSWORD: zamio_postgres
-      POSTGRES_DB: zamio_postgres
+      - POSTGRES_DB=zamio_postgres
+      - POSTGRES_USER=zamio_postgres
+      - POSTGRES_PASSWORD=zamio_postgres
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - ./data/db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zamio_postgres"]
       interval: 10s
@@ -20,87 +17,73 @@ services:
       retries: 5
 
   redis:
-    image: redis:7
+    image: redis:alpine
     container_name: zamio_redis
-    restart: always
-    ports:
-      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   zamio_app:
     build:
       context: .
     container_name: zamio_app
-    command: gunicorn core.wsgi:application --bind 0.0.0.0:6161 --workers 3 --timeout 120
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "6161:8000"   # host:container
     volumes:
       - .:/zamio_django
       - ./static_cdn:/var/lib/static_cdn
-    ports:
-      - "6161:6161"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
-    environment:
-      - DATABASE_URL=postgres://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
-      - REDIS_URL=redis://redis:6379/0
-      - DJANGO_SETTINGS_MODULE=core.settings
-      - PYTHONUNBUFFERED=1
-
-  django_manage:
-    build:
-      context: .
-    container_name: django_manage
-    command: tail -f /dev/null   # idle, so you can exec into it
-    volumes:
-      - .:/zamio_django
-    depends_on:
-      db:
         condition: service_healthy
-      redis:
-        condition: service_started
-    tty: true
-    environment:
-      - DATABASE_URL=postgres://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
-      - REDIS_URL=redis://redis:6379/0
-      - DJANGO_SETTINGS_MODULE=core.settings
-      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
-  celery:
+  celery_worker:
     build:
       context: .
-    container_name: zamio_celery
+    container_name: zamio_celery_worker
     command: celery -A core worker -l info
     volumes:
       - .:/zamio_django
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
-    environment:
-      - DATABASE_URL=postgres://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
-      - REDIS_URL=redis://redis:6379/0
-      - DJANGO_SETTINGS_MODULE=core.settings
-      - PYTHONUNBUFFERED=1
+        condition: service_healthy
+      zamio_app:
+        condition: service_healthy
 
-  celery-beat:
+  celery_beat:
     build:
       context: .
     container_name: zamio_celery_beat
-    command: celery -A core beat -l info
+    command: celery -A core beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
       - .:/zamio_django
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
-    environment:
-      - DATABASE_URL=postgres://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
-      - REDIS_URL=redis://redis:6379/0
-      - DJANGO_SETTINGS_MODULE=core.settings
-      - PYTHONUNBUFFERED=1
+        condition: service_healthy
+      zamio_app:
+        condition: service_healthy
 
 volumes:
-  postgres_data:
+  static_cdn:
