@@ -31,7 +31,6 @@ services:
 
   zamio_app:
     build: .
-    command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
     expose:
       - "8000"  # Only expose internally, let Coolify handle external routing
     environment:
@@ -56,10 +55,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health/ || curl -fsS http://localhost:8000/ || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 60s
     networks:
       - zamio_network
     labels:
@@ -90,8 +90,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      zamio_app:
-        condition: service_healthy
     restart: unless-stopped
     networks:
       - zamio_network
@@ -114,8 +112,6 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      zamio_app:
         condition: service_healthy
     restart: unless-stopped
     networks:

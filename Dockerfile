@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     curl \
     git \
+    postgresql-client \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /zamio_django
@@ -27,6 +28,13 @@ RUN pip install --upgrade pip setuptools wheel \
 # App code
 COPY . .
 
-# Entrypoint will handle migrate/collectstatic/start
+# Copy and set permissions for entrypoint
 COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Create directories for static and media files
+RUN mkdir -p /zamio_django/static_cdn /zamio_django/media
+
+EXPOSE 8000
+
 ENTRYPOINT ["/entrypoint.sh"]
