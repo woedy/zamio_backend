@@ -1,8 +1,10 @@
 [phases.setup]
-nixPkgs = ["python39", "ffmpeg", "libsndfile", "gcc", "libffi"]
+nixPkgs = ["python39", "python39Packages.pip", "ffmpeg", "libsndfile", "gcc", "libffi", "postgresql"]
 
 [phases.install]
 cmds = [
+    "python -m venv /opt/venv",  # Create a virtual environment
+    "source /opt/venv/bin/activate",  # Activate the virtual environment
     "pip install --upgrade pip setuptools wheel",
     "pip install -r requirements.txt"
 ]
@@ -14,7 +16,8 @@ cmds = [
 ]
 
 [start]
-cmd = "gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 core.wsgi:application"
+cmd = "source /opt/venv/bin/activate && gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 core.wsgi:application"
 
 [variables]
 PYTHONUNBUFFERED = "1"
+PATH = "/opt/venv/bin:$PATH"  # Ensure the virtual environment's bin directory is in PATH
