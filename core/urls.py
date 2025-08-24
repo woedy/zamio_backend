@@ -26,6 +26,8 @@ urlpatterns = [
     path("api/publishers/", include("publishers.urls")),
     path("api/stations/", include("stations.urls")),
     #path("api/streamer/", include("streamer.urls")),
+
+
 ]
 
 if settings.DEBUG:
