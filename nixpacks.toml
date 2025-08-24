@@ -12,6 +12,7 @@ nixPkgs = [
   "lapack"
 ]
 
+
 [phases.install]
 cmds = [
   "pip install --upgrade pip setuptools wheel cython",
