@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python39", "ffmpeg", "libsndfile1", "gcc", "libffi"]
+nixPkgs = ["python39", "ffmpeg", "libsndfile", "gcc", "libffi"]
 
 [phases.install]
 cmds = [
