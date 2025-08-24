@@ -54,15 +54,15 @@ services:
       - db
       - redis
 
-  zamio_frontend:
-    build:
-      context: ../zamio_frontend
-    ports:
-      - "4173:4173"
-    volumes:
-      - ../zamio_frontend:/zamio_frontend
-      - /zamio_frontend/node_modules
-    environment:
-      - VITE_API_URL=http://localhost:6161
-    depends_on:
-      - zamio_app
+  #zamio_frontend:
+  #  build:
+  #    context: ../zamio_frontend
+  #  ports:
+  #    - "4173:4173"
+  #  volumes:
+  #    - ../zamio_frontend:/zamio_frontend
+  #    - /zamio_frontend/node_modules
+  #  environment:
+  #    - VITE_API_URL=http://localhost:6161
+  #  depends_on:
+  #    - zamio_app
