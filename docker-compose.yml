@@ -8,12 +8,13 @@ services:
       POSTGRES_USER: zamio_postgres
       POSTGRES_PASSWORD: zamio_postgres
     volumes:
-      - ./data/db:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zamio_postgres -d zamio_postgres"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -22,6 +23,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   web:
     build: .
@@ -40,12 +42,11 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
 
-      # Wildcard domain settings
+      # Wildcard domain
       ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,web"
       CSRF_TRUSTED_ORIGINS: "https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
 
     volumes:
-      - .:/zamio_django
       - ./static_cdn:/zamio_django/static_cdn
       - ./media:/zamio_django/media
     depends_on:
@@ -101,3 +102,6 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  postgres_data:
