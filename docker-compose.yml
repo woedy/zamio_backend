@@ -32,8 +32,8 @@ services:
   zamio_app:
     build: .
     command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
-    ports:
-      - "8000:8000"  # Expose port for Coolify
+    expose:
+      - "8000"  # Only expose internally, let Coolify handle external routing
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       DEBUG: "False"
