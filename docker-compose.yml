@@ -1,77 +1,84 @@
-version: "3.9"
-
 services:
-  db:
-    image: postgres:14
-    environment:
-      POSTGRES_DB: zamio_postgres
-      POSTGRES_USER: zamio_postgres
-      POSTGRES_PASSWORD: zamio_postgres
-    volumes:
-      - dbdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zamio_postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
+  # Redis
   redis:
     image: redis:alpine
+    container_name: zamio_redis
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
 
-  web:
-    build: .
-    # no code bind mount in prod
-    environment:
-      DJANGO_SETTINGS_MODULE: core.settings
-      SECRET_KEY: ${SECRET_KEY}
-      DEBUG: "False"
-      DATABASE_URL: postgres://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
-      REDIS_URL: redis://redis:6379/0
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
-      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    # For first test via port; later remove this and use Coolify domain
-    ports:
-      - "6161:8000"
+  # Postgres Database
+  db:
+    image: postgres
+    container_name: zamio_postgres_db
     volumes:
-      - static_cdn:/zamio_django/static_cdn
-      - media:/zamio_django/media
-
-  celery:
-    build: .
-    command: celery -A core worker -l INFO
+      - ./data/db:/var/lib/postgresql/data
     environment:
-      DJANGO_SETTINGS_MODULE: core.settings
-      SECRET_KEY: ${SECRET_KEY}
-      DEBUG: "False"
-      DATABASE_URL: postgres://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
-      REDIS_URL: redis://redis:6379/0
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+      - POSTGRES_DB=zamio_postgres
+      - POSTGRES_USER=zamio_postgres
+      - POSTGRES_PASSWORD=zamio_postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zamio_postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Django Application
+  zamio_app:
+    build:
+      context: .
+    container_name: zamio_app
+    command: python manage.py runserver 0.0.0.0:6161
+    volumes:
+      - .:/zamio_django
+      - ./static_cdn:/var/lib/static_cdn
+    ports:
+      - "6161:6161"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      disable: true   # no healthcheck loop to kill terminal
+
+  # Django Management (manual commands: migrate, createsuperuser, etc.)
+  django_manage:
+    build:
+      context: .
+    container_name: django_manage
+    command: tail -f /dev/null   # keep container alive
+    volumes:
+      - .:/zamio_django
+    depends_on:
+      db:
+        condition: service_healthy
+    tty: true
+
+  # Celery Worker
+  celery:
+    build:
+      context: .
+    container_name: zamio_celery
+    command: celery -A core worker -l DEBUG
+    volumes:
+      - .:/zamio_django
+    restart: always
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
 
+  # Celery Beat (Scheduler)
   celery-beat:
-    build: .
-    command: celery -A core beat -l INFO
-    environment:
-      DJANGO_SETTINGS_MODULE: core.settings
-      SECRET_KEY: ${SECRET_KEY}
-      DEBUG: "False"
-      DATABASE_URL: postgres://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
-      REDIS_URL: redis://redis:6379/0
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+    build:
+      context: .
+    container_name: zamio_celery_beat
+    command: celery -A core beat -l DEBUG
+    volumes:
+      - .:/zamio_django
+    restart: always
     depends_on:
       db:
         condition: service_healthy
@@ -79,6 +86,4 @@ services:
         condition: service_healthy
 
 volumes:
-  dbdata:
   static_cdn:
-  media:
