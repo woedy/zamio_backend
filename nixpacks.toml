@@ -12,11 +12,13 @@ nixPkgs = [
   "lapack"
 ]
 
-
 [phases.install]
 cmds = [
-  "pip install --upgrade pip setuptools wheel cython",
+  # Ensure build tools are present
+  "pip install wheel setuptools cython",
+  # Pre-install numpy/scipy so librosa can build cleanly
   "pip install numpy scipy",
+  # Install the rest of your project requirements
   "pip install -r requirements.txt"
 ]
 
