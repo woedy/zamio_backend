@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   db:
-    image: postgres:15
+    image: postgres:15-alpine
     environment:
       POSTGRES_DB: zamio_postgres
       POSTGRES_USER: zamio_postgres
@@ -20,8 +20,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass zamio_redis_password
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -30,21 +31,27 @@ services:
       - zamio_network
 
   zamio_app:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     expose:
-      - "8000"  # Only expose internally, let Coolify handle external routing
+      - "8000"
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       DEBUG: "False"
+      # Security
+      SECRET_KEY: ${SECRET_KEY:-django-insecure-wg=khcu9^_pyr8j675w94-^6bd_8g-1i#t((1=i#2zer645d9&}
       # Database
       DATABASE_URL: postgresql://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
       # Redis + Celery
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      # Updated domain configuration
+      REDIS_URL: redis://:zamio_redis_password@redis:6379/0
+      CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
+      # Domain configuration
       ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
       CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
+      # Production settings
+      BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
     volumes:
       - ./static_cdn:/zamio_django/static_cdn
       - ./media:/zamio_django/media
@@ -70,17 +77,21 @@ services:
       - "traefik.http.routers.zamio.tls=true"
       - "traefik.http.routers.zamio.tls.certresolver=letsencrypt"
       - "traefik.http.services.zamio.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.zamio-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.zamio.middlewares=zamio-headers"
 
   celery_worker:
-    build: .
-    command: celery -A core worker -l INFO --concurrency=2
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A core worker -l INFO --concurrency=2 --max-tasks-per-child=1000
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       DEBUG: "False"
       DATABASE_URL: postgresql://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://:zamio_redis_password@redis:6379/0
+      CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
       ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
       CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
     volumes:
@@ -95,15 +106,17 @@ services:
       - zamio_network
 
   celery_beat:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     command: celery -A core beat -l INFO --scheduler=django_celery_beat.schedulers:DatabaseScheduler
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       DEBUG: "False"
       DATABASE_URL: postgresql://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://:zamio_redis_password@redis:6379/0
+      CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
       ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
       CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
     volumes:
@@ -119,6 +132,7 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
 
 networks:
   zamio_network:

@@ -1,6 +1,7 @@
 # Git
 .git
 .gitignore
+.gitattributes
 
 # Python
 __pycache__
@@ -33,7 +34,7 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
@@ -49,21 +50,61 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Project specific
-*.sqlite3
-celerybeat-schedule
-sent_emails/
-static_cdn/
-media/
-data/
-audioData/
-users/
+# Django
 *.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+static_cdn/
+static_root/
 
-# Jupyter Notebooks
-*.ipynb
+# Celery
+celerybeat-schedule
+celerybeat.pid
 
 # Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Documentation
+docs/
+*.md
+README*
+
+# Development files
 testing.py
 fix.txt
 commands.txt
+*.ipynb
+*.pyc
+jn_convert.py
+clean_migrations.py
+wave_converter.py
+
+# Data files
+data/
+audioData/
+sent_emails/
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Coolify
+coolify.yaml
+env.production.example
+
+# Deployment
+DEPLOYMENT.md
+DEPLOYMENT_CHECKLIST.md
