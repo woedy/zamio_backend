@@ -21,6 +21,8 @@ django-storages[boto3]
 django-redis
 xxhash
 matplotlib
+dj-database-url
+python-dotenv
 
 #numpy scipy pydub audioread matplotlib librosa
 #librosa numba xxhash

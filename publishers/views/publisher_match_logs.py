@@ -1,7 +1,7 @@
 
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
-from django.db.models import Q
+from django.db.models import Q, Sum
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
@@ -173,7 +173,7 @@ def get_publisher_dashboard_stats(request):
         track__artist__publisher=publisher,
         is_archived=False
     ).aggregate(
-        total=models.Sum('royalty_amount')
+        total=Sum('royalty_amount')
     )['total'] or 0
 
     data = {

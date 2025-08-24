@@ -1,0 +1,20 @@
+[phases.setup]
+nixPkgs = ["python39", "postgresql", "redis", "ffmpeg", "libsndfile1", "build-essential", "libffi-dev", "libpq-dev"]
+
+[phases.install]
+cmds = [
+    "pip install --upgrade pip setuptools wheel",
+    "pip install -r requirements.txt"
+]
+
+[phases.build]
+cmds = [
+    "python manage.py collectstatic --noinput",
+    "python manage.py migrate --noinput"
+]
+
+[start]
+cmd = "gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 core.wsgi:application"
+
+[variables]
+PYTHONUNBUFFERED = "1"

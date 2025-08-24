@@ -12,6 +12,10 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,13 +25,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-wg=khcu9^_pyr8j675w94-^6bd_8g-1i#t((1=i#2zer645d9&"
+SECRET_KEY = os.environ.get('SECRET_KEY', "django-insecure-wg=khcu9^_pyr8j675w94-^6bd_8g-1i#t((1=i#2zer645d9&")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
 #EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 #EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
@@ -43,7 +47,7 @@ EMAIL_HOST_PASSWORD = "nygmdsnhaxxlrsem"
 EMAIL_PORT = 465
 EMAIL_USE_SSL = True
 DEFAULT_FROM_EMAIL = "Zamio <zamio@gmail.com>"
-BASE_URL = "0.0.0.0:80"
+BASE_URL = os.environ.get('BASE_URL', "0.0.0.0:80")
 
 
 # Application definition
@@ -117,24 +121,19 @@ ASGI_APPLICATION = "core.asgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+# Use PostgreSQL in production, SQLite in development
+if os.environ.get('DATABASE_URL'):
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.parse(os.environ.get('DATABASE_URL'))
     }
-}
-
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'zamio_postgres',
-#         'USER': 'zamio_postgres',
-#         'PASSWORD': 'zamio_postgres',
-#         'HOST': 'db',
-#         'PORT': 5432,
-#      }
-# }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 
@@ -184,9 +183,9 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # Separate media files
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-#CELERY_BROKER_URL = "redis://redis:6379"
-#CELERY_RESULT_BACKEND = "redis://redis:6379"
-CELERY_BROKER_URL = 'redis://172.19.34.175:6379/0'
+# Celery Configuration
+CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
@@ -201,7 +200,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("redis", 6379)],
+            "hosts": [os.environ.get('REDIS_URL', 'redis://redis:6379/0')],
         },
     },
 }
@@ -241,7 +240,7 @@ AWS_QUERYSTRING_AUTH = False
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
+        "LOCATION": os.environ.get('REDIS_URL', 'redis://redis:6379/1'),
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
