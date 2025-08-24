@@ -17,20 +17,22 @@ nixPkgs = [
 
 [phases.install]
 cmds = [
-  # Pre-install scientific deps first
+  "python -m venv --copies /opt/venv",
+  ". /opt/venv/bin/activate",
   "pip install numpy scipy",
-  # Then install your app dependencies
   "pip install -r requirements.txt"
 ]
 
 [phases.build]
 cmds = [
-  "python manage.py collectstatic --noinput",
-  "python manage.py migrate --noinput"
+  "/opt/venv/bin/python manage.py collectstatic --noinput",
+  "/opt/venv/bin/python manage.py migrate --noinput"
 ]
 
 [start]
-cmd = "gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 core.wsgi:application"
+cmd = "/opt/venv/bin/gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 core.wsgi:application"
 
 [variables]
 PYTHONUNBUFFERED = "1"
+VIRTUAL_ENV = "/opt/venv"
+PATH = "/opt/venv/bin:$PATH"
