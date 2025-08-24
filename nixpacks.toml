@@ -18,8 +18,9 @@ nixPkgs = [
   "gnugrep"
 ]
 
-[phases.shell]
-nixPkgs = ["bashInteractive"]
+# Force runtime packages to always be installed in the final container
+[packages]
+runtime = ["bashInteractive", "coreutils"]
 
 [phases.install]
 cmds = [
@@ -36,7 +37,7 @@ cmds = [
 ]
 
 [start]
-cmd = "/opt/venv/bin/gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 core.wsgi:application"
+cmd = "bash -c '/opt/venv/bin/gunicorn --bind 0.0.0.0:$PORT --workers 3 --timeout 120 core.wsgi:application'"
 
 [variables]
 PYTHONUNBUFFERED = "1"
