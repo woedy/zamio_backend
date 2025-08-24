@@ -13,14 +13,13 @@ nixPkgs = [
   "postgresql",
   "blas",
   "lapack",
-  "coreutils",
   "findutils",
   "gnused",
   "gnugrep"
 ]
 
 [phases.shell]
-nixPkgs = ["bashInteractive", "coreutils"]
+nixPkgs = ["bashInteractive"]
 
 [phases.install]
 cmds = [
