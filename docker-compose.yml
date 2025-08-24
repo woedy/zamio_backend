@@ -25,25 +25,22 @@ services:
       retries: 5
     restart: unless-stopped
 
-  zamio_app:
+  # Web entrypoint for Django
+  web:
     build: .
     command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"   # Needed for Coolify domain routing
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       DEBUG: "False"
 
-      # Database
       DATABASE_URL: postgresql://zamio_postgres:zamio_postgres@db:5432/zamio_postgres
-
-      # Redis + Celery
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
 
-      # Wildcard domain
-      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
+      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,web"
       CSRF_TRUSTED_ORIGINS: "https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
 
     volumes:
@@ -71,7 +68,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
+      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,web"
       CSRF_TRUSTED_ORIGINS: "https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
     volumes:
       - .:/zamio_django
@@ -92,7 +89,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
+      ALLOWED_HOSTS: ".pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,web"
       CSRF_TRUSTED_ORIGINS: "https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
     volumes:
       - .:/zamio_django
