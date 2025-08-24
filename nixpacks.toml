@@ -1,14 +1,14 @@
 [phases.setup]
 nixPkgs = [
-  "python310"
-  "python310Packages.pip"
-  "ffmpeg"
-  "libsndfile"
-  "gcc"
-  "libffi"
-  "pkg-config"
-  "postgresql"
-  "blas"
+  "python310",
+  "python310Packages.pip",
+  "ffmpeg",
+  "libsndfile",
+  "gcc",
+  "libffi",
+  "pkg-config",
+  "postgresql",
+  "blas",
   "lapack"
 ]
 
