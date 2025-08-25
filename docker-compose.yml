@@ -34,7 +34,9 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
-    # No ports - let Coolify handle it
+    # Expose port for direct IP access while still allowing Coolify ingress
+    ports:
+      - "9001:8000"
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       DEBUG: "False"
@@ -43,8 +45,8 @@ services:
       REDIS_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
-      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
-      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
+      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,31.97.15.207"
+      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com,http://31.97.15.207:9001"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
       MPLCONFIGDIR: "/tmp/matplotlib"
     depends_on:
@@ -76,8 +78,8 @@ services:
       REDIS_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
-      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
-      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
+      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,31.97.15.207"
+      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com,http://31.97.15.207:9001"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
       MPLCONFIGDIR: "/tmp/matplotlib"
     depends_on:
@@ -101,8 +103,8 @@ services:
       REDIS_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
-      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
-      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
+      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,31.97.15.207"
+      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com,http://31.97.15.207:9001"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
       MPLCONFIGDIR: "/tmp/matplotlib"
     depends_on:
