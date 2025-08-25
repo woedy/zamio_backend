@@ -64,6 +64,13 @@ RUN chmod +x /entrypoint.sh
 RUN mkdir -p /zamio_django/static_cdn /zamio_django/media \
     && chown -R zamio:zamio /zamio_django
 
+# Create matplotlib config directory and set permissions
+RUN mkdir -p /home/zamio/.config/matplotlib \
+    && chown -R zamio:zamio /home/zamio
+
+# Set matplotlib environment variable
+ENV MPLCONFIGDIR=/tmp/matplotlib
+
 # Switch to non-root user
 USER zamio
 

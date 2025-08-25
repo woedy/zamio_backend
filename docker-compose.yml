@@ -46,6 +46,7 @@ services:
       ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
       CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
+      MPLCONFIGDIR: "/tmp/matplotlib"
     depends_on:
       db:
         condition: service_healthy
@@ -78,6 +79,7 @@ services:
       ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
       CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
+      MPLCONFIGDIR: "/tmp/matplotlib"
     depends_on:
       db:
         condition: service_healthy
@@ -102,6 +104,7 @@ services:
       ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
       CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
+      MPLCONFIGDIR: "/tmp/matplotlib"
     depends_on:
       db:
         condition: service_healthy

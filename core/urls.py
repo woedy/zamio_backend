@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from .view import home_page
 
 @csrf_exempt
 def health_check(request):
@@ -14,6 +15,7 @@ def health_check(request):
     })
 
 urlpatterns = [
+    path("", home_page, name="home"),  # Home page
     path("admin/", admin.site.urls),
     path("health/", health_check, name="health_check"),
     path("api/accounts/", include("accounts.api.urls")),
