@@ -35,8 +35,7 @@ services:
       context: .
       dockerfile: Dockerfile
     # Expose port for direct IP access while still allowing Coolify ingress
-    ports:
-      - "9001:8000"
+    # Keep container internal port 8000; direct host access provided by nginx_9001 sidecar
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       DEBUG: "False"
@@ -65,6 +64,18 @@ services:
       - zamio_prod_network
     stdin_open: true
     tty: true
+
+  nginx_9001:
+    image: nginx:alpine
+    depends_on:
+      - zamio_app
+    ports:
+      - "9001:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+    networks:
+      - zamio_prod_network
 
   celery_worker:
     build: 
