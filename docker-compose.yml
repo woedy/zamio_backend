@@ -34,25 +34,18 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "8001:8000"  # Changed to avoid port conflict
+    # No ports - let Coolify handle it
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       DEBUG: "False"
-      # Security
       SECRET_KEY: ${SECRET_KEY:-django-insecure-wg=khcu9^_pyr8j675w94-^6bd_8g-1i#t((1=i#2zer645d9&}
-      # Database
       DATABASE_URL: postgresql://zamio_prod_user:zamio_prod_password@db:5432/zamio_production
-      # Redis + Celery
       REDIS_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
-      # Domain configuration
-      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,31.97.15.207"
-      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com,http://31.97.15.207:8001"
-      # Production settings
+      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
+      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
-    # No volume mounts needed for production - files are copied during build
     depends_on:
       db:
         condition: service_healthy
@@ -67,10 +60,6 @@ services:
       start_period: 60s
     networks:
       - zamio_prod_network
-    # Simplified labels for Coolify
-    labels:
-      - "coolify.managed=true"
-    # Allow Django commands to be run in Coolify terminal
     stdin_open: true
     tty: true
 
@@ -86,10 +75,9 @@ services:
       REDIS_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
-      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,31.97.15.207"
-      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com,http://31.97.15.207:8000"
+      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
+      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
-    # No volume mounts needed for production - files are copied during build
     depends_on:
       db:
         condition: service_healthy
@@ -111,10 +99,9 @@ services:
       REDIS_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
-      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,31.97.15.207"
-      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com,http://31.97.15.207:8000"
+      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
+      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
-    # No volume mounts needed for production - files are copied during build
     depends_on:
       db:
         condition: service_healthy
