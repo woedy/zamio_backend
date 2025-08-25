@@ -1,0 +1,130 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: zamio_local
+      POSTGRES_USER: zamio_user
+      POSTGRES_PASSWORD: zamio_password
+    ports:
+      - "5433:5432"  # Use different port to avoid conflicts
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zamio_user -d zamio_local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - zamio_local_network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"  # Use different port to avoid conflicts
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - zamio_local_network
+
+  zamio_app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8000"  # Use different port to avoid conflicts
+    environment:
+      DJANGO_SETTINGS_MODULE: core.settings
+      DEBUG: "True"
+      # Database
+      DATABASE_URL: postgresql://zamio_user:zamio_password@db:5432/zamio_local
+      # Redis + Celery
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      # Local development settings
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app"
+      CSRF_TRUSTED_ORIGINS: "http://localhost:8001,http://127.0.0.1:8001"
+      BASE_URL: "http://localhost:8001"
+    volumes:
+      - .:/zamio_django
+      - ./static_cdn:/zamio_django/static_cdn
+      - ./media:/zamio_django/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - zamio_local_network
+    # Allow Django commands to be run
+    stdin_open: true
+    tty: true
+    # Entrypoint will now work properly with migrations
+
+  celery_worker:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A core worker -l INFO --concurrency=2
+    environment:
+      DJANGO_SETTINGS_MODULE: core.settings
+      DEBUG: "True"
+      DATABASE_URL: postgresql://zamio_user:zamio_password@db:5432/zamio_local
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app"
+      CSRF_TRUSTED_ORIGINS: "http://localhost:8001,http://127.0.0.1:8001"
+      BASE_URL: "http://localhost:8001"
+    volumes:
+      - .:/zamio_django
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - zamio_local_network
+
+  celery_beat:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A core beat -l INFO --scheduler=django_celery_beat.schedulers:DatabaseScheduler
+    environment:
+      DJANGO_SETTINGS_MODULE: core.settings
+      DEBUG: "True"
+      DATABASE_URL: postgresql://zamio_user:zamio_password@db:5432/zamio_local
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app"
+      CSRF_TRUSTED_ORIGINS: "http://localhost:8001,http://127.0.0.1:8001"
+      BASE_URL: "http://localhost:8001"
+    volumes:
+      - .:/zamio_django
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - zamio_local_network
+
+volumes:
+  postgres_local_data:
+    driver: local
+
+networks:
+  zamio_local_network:
+    driver: bridge

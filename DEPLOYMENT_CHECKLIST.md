@@ -1,96 +1,119 @@
-# 🚀 Coolify Deployment Checklist
+# 📋 ZamIO Django Deployment Checklist
 
-## ✅ Pre-Deployment Verification
+**Print this and check off each step as you complete it!**
 
-### 1. **Configuration Files** ✅
-- [x] `nixpacks.toml` - Build configuration for Coolify (Nixpacks-only deployment)
-- [x] `requirements.txt` - All dependencies including `python-dotenv` and `dj-database-url`
-- [x] `core/settings.py` - Environment variable support
-- [x] `core/urls.py` - Health check endpoint at `/health/`
+---
 
-### 2. **Environment Variables** ⚠️ **REQUIRED IN COOLIFY**
-You need to set these in Coolify dashboard:
+## 🖥️ **LOCAL DEVELOPMENT CHECKLIST**
 
-#### **Essential Variables:**
-```
-DEBUG=False
-SECRET_KEY=your-strong-secret-key-here
-ALLOWED_HOSTS=your-domain.com,www.your-domain.com
-DATABASE_URL=postgresql://username:password@host:port/database_name
-REDIS_URL=redis://redis-host:6379/0
-```
+### **Setup Phase**
+- [ ] Docker Desktop is running
+- [ ] You're in the `zamio_backend` directory
+- [ ] Created `.env.local` file from template
+- [ ] Started local services with `docker-compose -f docker-compose.local.yml up -d`
 
-#### **Optional Variables:**
-```
-BASE_URL=https://your-domain.com
-EMAIL_HOST=smtp.gmail.com
-EMAIL_HOST_USER=your-email@gmail.com
-EMAIL_HOST_PASSWORD=your-app-password
-```
+### **Verification Phase**
+- [ ] All 5 containers show "Up" status
+- [ ] Django app loads at http://localhost:8001
+- [ ] Database migrations run successfully
+- [ ] Superuser created successfully
+- [ ] Static files collected successfully
 
-### 3. **Coolify Configuration** ⚠️ **REQUIRED SETUP**
+**🎉 Local development is ready when all boxes are checked!**
 
-#### **Build Settings:**
-- **Build Pack**: Nixpacks
-- **Build Command**: (Auto-detected from nixpacks.toml)
-- **Start Command**: (Auto-detected from nixpacks.toml)
+---
 
-#### **Health Check:**
-- **Health Check URL**: `/health/`
-- **Health Check Interval**: 30 seconds
-- **Health Check Timeout**: 10 seconds
+## 🌐 **PRODUCTION DEPLOYMENT CHECKLIST**
 
-#### **Port:**
-- **Port**: 8000 (automatically set by Coolify)
+### **Preparation Phase**
+- [ ] Created `.env` file from production template
+- [ ] Updated SECRET_KEY with strong value
+- [ ] Updated email settings with real values
+- [ ] Tested production build locally
+- [ ] Committed and pushed code to Git
 
-### 4. **Database Setup** ⚠️ **REQUIRED**
-- [ ] PostgreSQL database created and accessible
-- [ ] `DATABASE_URL` environment variable set in Coolify
-- [ ] Database credentials are secure
+### **Coolify Setup Phase**
+- [ ] Created new application in Coolify
+- [ ] Connected Git repository
+- [ ] Enabled Docker Compose
+- [ ] Set compose file to `docker-compose.yml`
+- [ ] Set main service to `zamio_app`
 
-### 5. **Redis Setup** ⚠️ **REQUIRED**
-- [ ] Redis service running and accessible
-- [ ] `REDIS_URL` environment variable set in Coolify
+### **Environment Variables Phase**
+- [ ] Set DEBUG=False
+- [ ] Set DJANGO_SETTINGS_MODULE=core.settings
+- [ ] Set SECRET_KEY (your actual key)
+- [ ] Set DATABASE_URL
+- [ ] Set REDIS_URL
+- [ ] Set CELERY_BROKER_URL
+- [ ] Set CELERY_RESULT_BACKEND
+- [ ] Set ALLOWED_HOSTS
+- [ ] Set CSRF_TRUSTED_ORIGINS
+- [ ] Set BASE_URL
+- [ ] Set EMAIL settings
 
-## 🚀 **You're Ready to Deploy!**
+### **Domain & SSL Phase**
+- [ ] Set domain to `zamio.api.pleromaspringsfoundation.com`
+- [ ] Enabled SSL with Let's Encrypt
+- [ ] Enabled Force HTTPS
 
-### **Next Steps:**
+### **Deployment Phase**
+- [ ] Clicked Deploy button
+- [ ] Build completed successfully
+- [ ] All services show "Running" status
 
-1. **Set Environment Variables in Coolify:**
-   - Go to your Coolify dashboard
-   - Navigate to your application settings
-   - Add all required environment variables
+### **Post-Deployment Phase**
+- [ ] Ran database migrations in Coolify terminal
+- [ ] Created superuser in Coolify terminal
+- [ ] Collected static files in Coolify terminal
+- [ ] Ran Django health check
 
-2. **Deploy:**
-   - Push your code to your Git repository
-   - Coolify will automatically detect the `nixpacks.toml` file
-   - The build process will:
-     - Install Nix system dependencies (ffmpeg, libsndfile1, gcc, libffi)
-     - Install Python dependencies from requirements.txt
-     - Run database migrations
-     - Collect static files
-     - Start with Gunicorn
+### **Final Verification**
+- [ ] Application loads at https://zamio.api.pleromaspringsfoundation.com
+- [ ] SSL certificate is valid (green lock in browser)
+- [ ] All Django functionality works
+- [ ] Can access Coolify terminal and run Django commands
 
-3. **Monitor:**
-   - Check the `/health/` endpoint
-   - Monitor logs in Coolify dashboard
-   - Verify all services are running
+**🎉 Production deployment is complete when all boxes are checked!**
 
-## 🔧 **If Deployment Fails:**
+---
 
-### **Common Issues:**
-1. **Missing Environment Variables** - Check all required variables are set
-2. **Database Connection** - Verify `DATABASE_URL` is correct
-3. **Redis Connection** - Verify `REDIS_URL` is correct
-4. **Port Issues** - Ensure port 8000 is available
+## 🆘 **TROUBLESHOOTING QUICK REFERENCE**
 
-### **Debug Steps:**
-1. Check Coolify logs for specific error messages
-2. Test health endpoint: `curl https://your-domain.com/health/`
-3. Verify environment variables in Coolify dashboard
-4. Check database and Redis connectivity
+### **If Local Fails**
+- [ ] Check Docker status: `docker info`
+- [ ] Check container logs: `docker-compose -f docker-compose.local.yml logs -f`
+- [ ] Verify ports are available
+- [ ] Check `.env.local` file exists
 
-## 📋 **Final Status:**
-✅ **Ready for Deployment** - All configuration files are in place!
+### **If Production Fails**
+- [ ] Check Coolify build logs
+- [ ] Verify all environment variables are set
+- [ ] Check if all files are in Git repository
+- [ ] Verify domain DNS settings
 
-⚠️ **Action Required**: Set environment variables in Coolify dashboard before deploying.
+---
+
+## 📞 **SUPPORT RESOURCES**
+
+- **Complete Guide**: `DEPLOYMENT_STEPS.md`
+- **Quick Commands**: `QUICK_COMMANDS.md`
+- **Docker Guide**: `README_DOCKER.md`
+- **Coolify Guide**: `COOLIFY_DEPLOYMENT.md`
+
+---
+
+## 🎯 **EXPECTED TIMELINE**
+
+- **Local Setup**: 15-30 minutes
+- **Production Preparation**: 10-15 minutes  
+- **Coolify Configuration**: 10-15 minutes
+- **Initial Deployment**: 10-20 minutes
+- **Post-Deployment Setup**: 15-30 minutes
+- **Total**: ~1-2 hours
+
+---
+
+**🚀 You're ready to deploy! Follow the checklist step by step.**
+
+**Remember**: Take your time, check each box, and don't skip steps!

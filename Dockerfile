@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for production
+# Multi-stage Dockerfile for ZamIO Django
 FROM python:3.11-slim as builder
 
 ENV PYTHONUNBUFFERED=1 \
@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     ffmpeg \
     git \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create virtual environment
@@ -39,6 +40,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     postgresql-client \
+    nano \
+    vim \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -69,4 +72,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/ || exit 1
 
-ENTRYPOINT ["/entrypoint.sh"]
+# Default command (can be overridden for Django commands)
+CMD ["/entrypoint.sh"]
