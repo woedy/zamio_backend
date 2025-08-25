@@ -415,3 +415,120 @@ docker-compose exec zamio_app bash
 **🎉 You're Ready to Deploy!**
 
 Follow these steps exactly, and you'll have your ZamIO Django application running both locally and in production on Coolify!
+
+## 🔧 **Manual Fix Required**
+
+You need to update your `docker-compose.yml` file by removing the problematic volume mounts. Here are the specific changes:
+
+### **1. Remove Volume Mounts from `zamio_app` Service (around line 67-68)**
+
+**Change this:**
+```yaml
+    volumes:
+      - ./static_cdn:/zamio_django/static_cdn
+      - ./media:/zamio_django/media
+```
+
+**To this:**
+```yaml
+    # No volume mounts needed for production - files are copied during build
+```
+
+### **2. Remove Volume Mounts from `celery_worker` Service (around line 108)**
+
+**Change this:**
+```yaml
+    volumes:
+      - .:/zamio_django
+```
+
+**To this:**
+```yaml
+    # No volume mounts needed for production - files are copied during build
+```
+
+### **3. Remove Volume Mounts from `celery_beat` Service (around line 125)**
+
+**Change this:**
+```yaml
+    volumes:
+      - .:/zamio_django
+```
+
+**To this:**
+```yaml
+    # No volume mounts needed for production - files are copied during build
+```
+
+## 🎯 **Why This Fixes the Issue**
+
+1. **Volume Conflicts**: The `- .:/zamio_django` mount tries to create a Docker volume from your local directory, which doesn't exist on the Coolify server
+2. **File Exists Error**: The error "file exists" occurs because Docker is trying to create volumes from directories that already exist or are conflicting
+3. **Production vs Local**: In production, all files are copied during the Docker build process, so volume mounts aren't needed
+
+## 📄 **Complete Corrected Sections**
+
+Here's what your services should look like after the fix:
+
+### **zamio_app Service:**
+```yaml
+<code_block_to_apply_from>
+  zamio_app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    expose:
+      - "8000"
+    environment:
+      # ... your environment variables ...
+    # No volume mounts needed for production - files are copied during build
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # ... rest of configuration ...
+```
+
+### **celery_worker Service:**
+```yaml
+  celery_worker:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A core worker -l INFO --concurrency=2 --max-tasks-per-child=1000
+    environment:
+      # ... your environment variables ...
+    # No volume mounts needed for production - files are copied during build
+    depends_on:
+      # ... dependencies ...
+```
+
+### **celery_beat Service:**
+```yaml
+  celery_beat:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A core beat -l INFO --scheduler=django_celery_beat.schedulers:DatabaseScheduler
+    environment:
+      # ... your environment variables ...
+    # No volume mounts needed for production - files are copied during build
+    depends_on:
+      # ... dependencies ...
+```
+
+## 🚀 **After Making These Changes**
+
+1. **Save the file**
+2. **Commit and push to Git**:
+   ```bash
+   git add docker-compose.yml
+   git commit -m "Fix: Remove volume mounts for Coolify production deployment"
+   git push origin main
+   ```
+3. **Try deploying again in Coolify**
+
+The deployment should now work without the volume mount errors!
+
+Would you like me to help you with anything else, or do you have questions about making these changes?

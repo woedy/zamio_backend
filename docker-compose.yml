@@ -52,9 +52,7 @@ services:
       CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
       # Production settings
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
-    volumes:
-      - ./static_cdn:/zamio_django/static_cdn
-      - ./media:/zamio_django/media
+    # No volume mounts needed for production - files are copied during build
     depends_on:
       db:
         condition: service_healthy
@@ -98,8 +96,7 @@ services:
       ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
       CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
-    volumes:
-      - .:/zamio_django
+    # No volume mounts needed for production - files are copied during build
     depends_on:
       db:
         condition: service_healthy
@@ -124,8 +121,7 @@ services:
       ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
       CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
-    volumes:
-      - .:/zamio_django
+    # No volume mounts needed for production - files are copied during build
     depends_on:
       db:
         condition: service_healthy
