@@ -34,8 +34,8 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"  # Expose port for Coolify to route
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       DEBUG: "False"
@@ -48,8 +48,8 @@ services:
       CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
       # Domain configuration
-      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
-      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
+      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,31.97.15.207"
+      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com,http://31.97.15.207:8000"
       # Production settings
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
     # No volume mounts needed for production - files are copied during build
@@ -67,16 +67,9 @@ services:
       start_period: 60s
     networks:
       - zamio_prod_network
+    # Simplified labels for Coolify
     labels:
-      # Coolify labels for proper routing
       - "coolify.managed=true"
-      - "traefik.enable=true"
-      - "traefik.http.routers.zamio.rule=Host(`zamio.api.pleromaspringsfoundation.com`)"
-      - "traefik.http.routers.zamio.tls=true"
-      - "traefik.http.routers.zamio.tls.certresolver=letsencrypt"
-      - "traefik.http.services.zamio.loadbalancer.server.port=8000"
-      - "traefik.http.middlewares.zamio-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
-      - "traefik.http.routers.zamio.middlewares=zamio-headers"
     # Allow Django commands to be run in Coolify terminal
     stdin_open: true
     tty: true
@@ -93,8 +86,8 @@ services:
       REDIS_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
-      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
-      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
+      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,31.97.15.207"
+      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com,http://31.97.15.207:8000"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
     # No volume mounts needed for production - files are copied during build
     depends_on:
@@ -118,8 +111,8 @@ services:
       REDIS_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_BROKER_URL: redis://:zamio_redis_password@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
-      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app"
-      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com"
+      ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,31.97.15.207"
+      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com,http://31.97.15.207:8000"
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
     # No volume mounts needed for production - files are copied during build
     depends_on:
