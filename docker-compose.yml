@@ -35,7 +35,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"  # Expose port for Coolify to route
+      - "8001:8000"  # Changed to avoid port conflict
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       DEBUG: "False"
@@ -49,7 +49,7 @@ services:
       CELERY_RESULT_BACKEND: redis://:zamio_redis_password@redis:6379/0
       # Domain configuration
       ALLOWED_HOSTS: "zamio.api.pleromaspringsfoundation.com,.pleromaspringsfoundation.com,pleromaspringsfoundation.com,localhost,zamio_app,31.97.15.207"
-      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com,http://31.97.15.207:8000"
+      CSRF_TRUSTED_ORIGINS: "https://zamio.api.pleromaspringsfoundation.com,https://*.pleromaspringsfoundation.com,https://pleromaspringsfoundation.com,http://31.97.15.207:8001"
       # Production settings
       BASE_URL: "https://zamio.api.pleromaspringsfoundation.com"
     # No volume mounts needed for production - files are copied during build
