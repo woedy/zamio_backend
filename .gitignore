@@ -1,6 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtualenv
 /.venv
+/.env
+
+# Environment files
+/.env.local
+/.env.*
+!.env.example
+
+# Databases
+/db.sqlite3
+*.sqlite3
+
+# Logs and run artifacts
+*.log
+/sent_emails
+/celerybeat-schedule*
+
+# User-uploaded/static build outputs
 /media
+/static_cdn
 /audio
 /audioData
 /data
-/.env
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

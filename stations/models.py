@@ -18,7 +18,6 @@ class Station(models.Model):
     ONBOARDING_STEPS = [
         ('profile', 'Complete Profile'),
         ('staff', 'Staff'),
-        ('report', 'Report Method'),
         ('payment', 'Add Payment Info'),
     ]
 
@@ -71,8 +70,6 @@ class Station(models.Model):
             return 'profile'
         elif not self.staff_completed:
             return 'staff'
-        elif not self.report_completed:
-            return 'report'
         elif not self.payment_info_added:
             return 'payment'
         return 'done'
@@ -135,4 +132,20 @@ class ProgramStaff(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class StationStaff(models.Model):
+    station = models.ForeignKey(Station, on_delete=models.CASCADE, related_name='station_staff')
+    name = models.CharField(max_length=100)
+    email = models.EmailField(null=True, blank=True)
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES)
+
+    is_archived = models.BooleanField(default=False)
+    active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.role}"
 

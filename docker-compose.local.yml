@@ -49,8 +49,8 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       # Local development settings
-      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app"
-      CSRF_TRUSTED_ORIGINS: "http://localhost:9001,http://127.0.0.1:9001"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app,31.97.156.207"
+      CSRF_TRUSTED_ORIGINS: "http://localhost:9001,http://127.0.0.1:9001,http://31.97.156.207:9001,http://localhost:9002,http://127.0.0.1:9002"
       BASE_URL: "http://localhost:9001"
     volumes:
       - .:/zamio_django
@@ -64,10 +64,8 @@ services:
     restart: unless-stopped
     networks:
       - zamio_local_network
-    # Allow Django commands to be run
     stdin_open: true
     tty: true
-    # Entrypoint will now work properly with migrations
 
   celery_worker:
     build: 
@@ -81,8 +79,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app"
-      CSRF_TRUSTED_ORIGINS: "http://localhost:9001,http://127.0.0.1:9001"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app,31.97.156.207"
+      CSRF_TRUSTED_ORIGINS: "http://localhost:9001,http://127.0.0.1:9001,http://31.97.156.207:9001,http://localhost:9002,http://127.0.0.1:9002"
       BASE_URL: "http://localhost:9001"
     volumes:
       - .:/zamio_django
@@ -107,8 +105,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app"
-      CSRF_TRUSTED_ORIGINS: "http://localhost:9001,http://127.0.0.1:9001"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app,31.97.156.207"
+      CSRF_TRUSTED_ORIGINS: "http://localhost:9001,http://127.0.0.1:9001,http://31.97.156.207:9001,http://localhost:9002,http://127.0.0.1:9002"
       BASE_URL: "http://localhost:9001"
     volumes:
       - .:/zamio_django
@@ -120,6 +118,44 @@ services:
     restart: unless-stopped
     networks:
       - zamio_local_network
+
+  zamio_frontend:
+    build:
+      context: ../zamio_frontend
+      dockerfile: Dockerfile
+    ports:
+      - "9002:4173"
+    container_name: zamio_frontend
+    volumes:
+      - ../zamio_frontend:/zamio_frontend_pro
+      - /zamio_frontend_pro/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=http://localhost:9001
+    depends_on:
+      - zamio_app
+    networks:
+      - zamio_local_network
+
+
+  zamio_stations:
+    build:
+      context: ../zamio_stations
+      dockerfile: Dockerfile
+    ports:
+      - "9005:4174"
+    container_name: zamio_stations  
+    volumes:
+      - ../zamio_stations:/zamio_stations_pro
+      - /zamio_stations_pro/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=http://localhost:9001
+    depends_on:
+      - zamio_app
+    networks:
+      - zamio_local_network
+
 
 volumes:
   postgres_local_data:

@@ -1,58 +1,39 @@
 #!/bin/bash
+
+# Local development entrypoint for ZamIO Django
 set -e
 
-echo "🚀 Starting ZamIO Django Application..."
-
-# Function to check if a service is ready
-wait_for_service() {
-    local service_name=$1
-    local service_url=$2
-    local timeout=${3:-60}
-    local counter=0
-    
-    echo "⏳ Waiting for $service_name connection..."
-    until python -c "
-import os, sys
-try:
-    if '$service_name' == 'postgres':
-        import psycopg2
-        conn = psycopg2.connect(os.environ['DATABASE_URL'])
-        conn.close()
-        print('✅ Database connected successfully')
-    elif '$service_name' == 'redis':
-        import redis
-        r = redis.from_url(os.environ['REDIS_URL'])
-        r.ping()
-        print('✅ Redis connected successfully')
-    sys.exit(0)
-except Exception as e:
-    print(f'❌ $service_name connection failed: {e}')
-    sys.exit(1)
-" 2>/dev/null; do
-        counter=$((counter + 1))
-        if [ $counter -gt $timeout ]; then
-            echo "❌ $service_name connection timeout after ${timeout} seconds"
-            exit 1
-        fi
-        echo "⏳ Waiting for $service_name... (${counter}/${timeout})"
-        sleep 2
-    done
+log() {
+	echo "$(date +"%Y-%m-%d %H:%M:%S.%3N") | $1"
 }
 
-# Wait for database
-wait_for_service "postgres" "$DATABASE_URL" 60
+log "Starting ZamIO Django application..."
 
-# Wait for Redis
-wait_for_service "redis" "$REDIS_URL" 30
+# Wait for database to be ready using pg_isready
+log "Waiting for database to be ready..."
+until pg_isready -h db -p 5432 -U zamio_user -d zamio_local >/dev/null 2>&1; do
+	log "Database is not ready yet. Waiting..."
+	sleep 2
+done
 
-echo "📊 Running database migrations..."
-python manage.py migrate --noinput
+# If a command is provided (e.g., Celery), run it; otherwise do Django setup and start server
+if [ "$#" -gt 0 ]; then
+	log "Executing provided command (skipping makemigrations/migrate): $*"
+	exec "$@"
+else
+	## Run makemigrations (dev convenience)
+	#log "Running database make migrations..."
+	#python manage.py makemigrations || true
 
-echo "🎨 Collecting static files..."
-python manage.py collectstatic --noinput --clear
+	# Run migrations
+	log "Running database migrations..."
+	python manage.py migrate
 
-echo "🔍 Running Django system check..."
-python manage.py check --deploy
+	# Collect static files (if needed)
+	log "Collecting static files..."
+	python manage.py collectstatic --noinput || true
 
-echo "🚀 Starting Daphne ASGI server..."
-exec daphne -b 0.0.0.0 -p 8000 core.asgi:application
+	# Start the application
+	log "Starting Django development server..."
+	exec python manage.py runserver 0.0.0.0:8000
+fi

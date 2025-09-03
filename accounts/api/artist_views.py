@@ -2,7 +2,7 @@ from decimal import Decimal
 from django.core.mail import send_mail
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from django.template.loader import get_template
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -11,8 +11,6 @@ from rest_framework.response import Response
 
 from accounts.api.serializers import UserRegistrationSerializer
 from activities.models import AllActivity
-from django.core.mail import send_mail
-from django.contrib.auth import get_user_model, authenticate
 
 
 from rest_framework.views import APIView
@@ -86,40 +84,47 @@ def register_artist_view(request):
             return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = UserRegistrationSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            data["user_id"] = user.user_id
-            data["email"] = user.email
-            data["first_name"] = user.first_name
-            data["last_name"] = user.last_name
-            data["photo"] = user.photo
+        if not serializer.is_valid():
+            payload['message'] = "Errors"
+            payload['errors'] = serializer.errors
+            return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-            if country:
-                data["country"] = user.country
+        user = serializer.save()
 
+        # Populate additional user fields not handled by serializer
+        user.user_type = "Artist"
+        user.phone = phone
+        if country:
+            user.country = country
+        if photo:
+            user.photo = photo
+        user.save()
 
-            user.user_type = "Artist"
-            user.phone = phone
-            user.save()
+        # Create artist profile and wallet
+        artist_profile = Artist.objects.create(
+            user=user,
+            stage_name=stage_name
+        )
+        BankAccount.objects.get_or_create(
+            user=user,
+            defaults={
+                'balance': Decimal('0.00'),
+                'currency': "Ghc",
+            }
+        )
 
-            artist_profile = Artist.objects.create(
-                user=user,
-                stage_name=stage_name
+        # Prepare response data
+        data["user_id"] = user.user_id
+        data["email"] = user.email
+        data["first_name"] = user.first_name
+        data["last_name"] = user.last_name
+        data['phone'] = user.phone
+        data['country'] = user.country
+        data['photo'] = user.photo.url if getattr(user.photo, 'url', None) else None
 
-            )
-            artist_profile.save()
-            account = BankAccount.objects.get_or_create(
-                user=user, 
-                balance=Decimal('0.00'),
-                currency="Ghc"
-            )
-
-            data['phone'] = user.phone
-            data['country'] = user.country
-            data['photo'] = user.photo.url
-
-        token = Token.objects.get(user=user).key
-        data['token'] = token
+        # Token for client session (email must still be verified to log in)
+        token_obj, _ = Token.objects.get_or_create(user=user)
+        data['token'] = token_obj.key
 
         email_token = generate_email_token()
 
@@ -316,8 +321,8 @@ class ArtistLogin(APIView):
         user.fcm_token = fcm_token
         user.save()
 
-        # Determine next onboarding step
-        artist.onboarding_step = artist.get_next_onboarding_step()
+        # Do not override stored onboarding_step here.
+        # It is updated by completion endpoints or explicit skip actions.
         artist.save()
 
         data = {
@@ -326,7 +331,7 @@ class ArtistLogin(APIView):
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
-            "photo": user.photo.url if user.photo else None,
+            "photo": user.photo.url if getattr(user.photo, 'url', None) else None,
             "country": user.country,
             "phone": user.phone,
             "token": token.key,
@@ -367,7 +372,7 @@ def complete_artist_profile_view(request):
     bio = request.data.get('bio', "")
     country = request.data.get('country', "")
     region = request.data.get('region', "")
-    photo = request.data.get('photo', "")
+    photo = request.FILES.get('photo')
 
     if not artist_id:
         errors['artist_id'] = ['Artist ID is required.']
@@ -390,13 +395,56 @@ def complete_artist_profile_view(request):
     if region:
         artist.region = region
     if photo:
-        artist.photo = photo
+        artist.user.photo = photo
+        artist.user.save()
 
     # Mark this step as complete
     artist.profile_completed = True
 
     # Move to next onboarding step
     artist.onboarding_step = artist.get_next_onboarding_step()
+    artist.save()
+
+    data["artist_id"] = artist.artist_id
+    data["next_step"] = artist.onboarding_step
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def skip_artist_onboarding_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    artist_id = request.data.get('artist_id', "")
+    step = request.data.get('step', "")
+
+    if not artist_id:
+        errors['artist_id'] = ['Artist ID is required.']
+    if not step:
+        errors['step'] = ['Target step is required.']
+
+    try:
+        artist = Artist.objects.get(artist_id=artist_id)
+    except Artist.DoesNotExist:
+        errors['artist_id'] = ['Artist not found.']
+        artist = None
+
+    if artist and step not in dict(Artist.ONBOARDING_STEPS).keys():
+        errors['step'] = ['Invalid onboarding step.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Update only the pointer for where to resume onboarding.
+    artist.onboarding_step = step
     artist.save()
 
     data["artist_id"] = artist.artist_id
@@ -624,8 +672,8 @@ def onboard_artist_view(request):
     
     data["user_id"] = artist.user.user_id
     data["email"] = artist.user.email
-    data["artist_id"] = artist.id
-    data["name"] = artist.name
+    data["artist_id"] = artist.artist_id
+    data["name"] = artist.stage_name
 
     payload['message'] = "Successful"
     payload['data'] = data

@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from accounts.api.serializers import UserRegistrationSerializer
 from activities.models import AllActivity
 from bank_account.models import BankAccount
-from stations.models import Station
+from stations.models import Station, StationStaff, ROLE_CHOICES
 from core.utils import generate_email_token, is_valid_email, is_valid_password
 
 
@@ -315,9 +315,18 @@ class StationLogin(APIView):
         user.fcm_token = fcm_token
         user.save()
 
-        # Determine next onboarding step
-        station.onboarding_step = station.get_next_onboarding_step()
-        station.save()
+        # Align stored onboarding_step with computed next step, but never regress.
+        try:
+            step_order = ['profile', 'staff', 'report', 'payment', 'done']
+            computed = station.get_next_onboarding_step()
+            cur_idx = step_order.index(station.onboarding_step) if station.onboarding_step in step_order else 0
+            cmp_idx = step_order.index(computed) if computed in step_order else 0
+            new_step = step_order[max(cur_idx, cmp_idx)]
+            if new_step != station.onboarding_step:
+                station.onboarding_step = new_step
+                station.save()
+        except Exception:
+            station.save()
 
         data = {
             "user_id": user.user_id,
@@ -390,7 +399,7 @@ def complete_station_profile_view(request):
     if photo:
         station.photo = photo
 
-    # Mark this step as complete
+    # Mark this step as complete (profile)
     station.profile_completed = True
 
     # Move to next onboarding step
@@ -413,10 +422,7 @@ def complete_add_staff_view(request):
     errors = {}
 
     station_id = request.data.get('station_id', "")
-    bio = request.data.get('bio', "")
-    country = request.data.get('country', "")
-    region = request.data.get('region', "")
-    photo = request.data.get('photo', "")
+    staff_payload = request.data.get('staff', [])
 
     if not station_id:
         errors['station_id'] = ['Station ID is required.']
@@ -431,18 +437,37 @@ def complete_add_staff_view(request):
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    # Apply changes if provided
-    if bio:
-        station.bio = bio
-    if country:
-        station.country = country
-    if region:
-        station.region = region
-    if photo:
-        station.photo = photo
+    # Normalize staff payload (allow JSON string or list)
+    import json
+    if isinstance(staff_payload, str):
+        try:
+            staff_payload = json.loads(staff_payload)
+        except Exception:
+            staff_payload = []
 
-    # Mark this step as complete
-    station.profile_completed = True
+    if not isinstance(staff_payload, list):
+        staff_payload = []
+
+    # Validate and collect staff entries
+    valid_roles = [c[0] for c in ROLE_CHOICES]
+    to_create = []
+    for item in staff_payload:
+        try:
+            name = (item.get('name') or '').strip()
+            email = (item.get('email') or '').strip() or None
+            role = (item.get('role') or '').strip()
+        except AttributeError:
+            continue
+        if not name or role not in valid_roles:
+            continue
+        to_create.append(StationStaff(station=station, name=name, email=email, role=role))
+
+    if to_create:
+        StationStaff.objects.bulk_create(to_create)
+
+    # Mark this step as complete when at least one entry is present; otherwise keep current state
+    if to_create:
+        station.staff_completed = True
 
     # Move to next onboarding step
     station.onboarding_step = station.get_next_onboarding_step()
@@ -492,8 +517,8 @@ def complete_report_method_view(request):
     if photo:
         station.photo = photo
 
-    # Mark this step as complete
-    station.profile_completed = True
+    # Mark this step as complete (report method)
+    station.report_completed = True
 
     # Move to next onboarding step
     station.onboarding_step = station.get_next_onboarding_step()
@@ -641,4 +666,79 @@ def logout_station_view(request):
     payload['message'] = "Successful"
     payload['data'] = data
     return Response(payload)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def skip_station_onboarding_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.data.get('station_id', "")
+    step = request.data.get('step', "")
+
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+    if not step:
+        errors['step'] = ['Target step is required.']
+
+    try:
+        station = Station.objects.get(station_id=station_id)
+    except Station.DoesNotExist:
+        errors['station_id'] = ['Station not found.']
+        station = None
+
+    if station and step not in dict(Station.ONBOARDING_STEPS).keys():
+        errors['step'] = ['Invalid onboarding step.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    station.onboarding_step = step
+    station.save()
+
+    data['station_id'] = station.station_id
+    data['next_step'] = station.onboarding_step
+
+    payload['message'] = 'Successful'
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def station_onboarding_status_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.query_params.get('station_id', "")
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+        payload['message'] = 'Errors'
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        station = Station.objects.get(station_id=station_id)
+    except Station.DoesNotExist:
+        payload['message'] = 'Errors'
+        payload['errors'] = {'station_id': ['Station not found.']}
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    data['station_id'] = station.station_id
+    data['onboarding_step'] = station.onboarding_step
+    data['profile_completed'] = station.profile_completed
+    data['staff_completed'] = station.staff_completed
+    data['report_completed'] = station.report_completed
+    data['payment_info_added'] = station.payment_info_added
+
+    payload['message'] = 'Successful'
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
 

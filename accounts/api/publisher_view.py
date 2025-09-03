@@ -7,6 +7,8 @@ from django.template.loader import get_template
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 
 from accounts.api.serializers import UserRegistrationSerializer
@@ -370,7 +372,8 @@ def complete_publisher_profile_view(request):
     bio = request.data.get('bio', "")
     country = request.data.get('country', "")
     region = request.data.get('region', "")
-    photo = request.data.get('photo', "")
+    # Accept file uploads via multipart
+    photo = request.FILES.get('photo') or request.data.get('photo', "")
 
     if not publisher_id:
         errors['publisher_id'] = ['PublisherProfile ID is required.']
@@ -395,7 +398,7 @@ def complete_publisher_profile_view(request):
     if photo:
         publisher.photo = photo
 
-    # Mark this step as complete
+    # Mark this step as complete (profile)
     publisher.profile_completed = True
 
     # Move to next onboarding step
@@ -497,8 +500,8 @@ def complete_link_artist_view(request):
     if photo:
         publisher.photo = photo
 
-    # Mark this step as complete
-    publisher.profile_completed = True
+    # Mark this step as complete (link artist)
+    publisher.link_artist_completed = True
 
     # Move to next onboarding step
     publisher.onboarding_step = publisher.get_next_onboarding_step()
@@ -602,6 +605,35 @@ def onboard_publisher_view(request):
     payload['message'] = "Successful"
     payload['data'] = data
     return Response(payload)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def list_publishers_view(request):
+    payload = {}
+    data = {}
+
+    qs = PublisherProfile.objects.all()
+    # Prefer active publishers when field exists
+    try:
+        qs = qs.filter(active=True)
+    except Exception:
+        pass
+
+    publishers = []
+    for p in qs:
+        publishers.append({
+            'publisher_id': p.publisher_id,
+            'company_name': p.company_name,
+            'country': getattr(p, 'country', None),
+            'verified': getattr(p, 'verified', False),
+        })
+
+    data['publishers'] = publishers
+    payload['message'] = 'Successful'
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
 
 
 

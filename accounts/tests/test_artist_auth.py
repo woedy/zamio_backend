@@ -1,7 +1,8 @@
+from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework import status
-from django.urls import reverse
 from django.contrib.auth import get_user_model
+
 from artists.models import Artist
 
 
@@ -13,6 +14,8 @@ class ArtistAuthFlowTests(APITestCase):
         self.register_url = reverse('accounts:register_artist')
         self.verify_url = reverse('accounts:verify_artist_email')
         self.login_url = reverse('accounts:login_artist')
+        self.skip_url = reverse('accounts:skip_artist_onboarding_view')
+        self.logout_url = reverse('accounts:logout_artist_view')
 
         self.payload = {
             'email': 'artist@example.com',
@@ -82,6 +85,7 @@ class ArtistAuthFlowTests(APITestCase):
         user = User.objects.get(email=self.payload['email'])
         self.client.post(self.verify_url, {'email': user.email, 'email_token': user.email_token}, format='json')
 
+        # First login and capture token + artist
         login_payload = {
             'email': self.payload['email'],
             'password': self.payload['password'],
@@ -93,38 +97,41 @@ class ArtistAuthFlowTests(APITestCase):
         artist_id = resp.data['data']['artist_id']
         self.assertEqual(resp.data['data']['onboarding_step'], 'profile')
 
-        skip_url = reverse('accounts:skip_artist_onboarding_view')
-        logout_url = reverse('accounts:logout_artist_view')
-
-        # Auth
+        # Auth with token for protected endpoints
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token}')
 
         # Skip to social-media
-        r1 = self.client.post(skip_url, {'artist_id': artist_id, 'step': 'social-media'}, format='json')
+        r1 = self.client.post(self.skip_url, { 'artist_id': artist_id, 'step': 'social-media' }, format='json')
         self.assertEqual(r1.status_code, status.HTTP_200_OK, r1.data)
         self.assertEqual(r1.data['data']['next_step'], 'social-media')
 
-        # Logout and login should resume
-        self.client.post(logout_url, {'artist_id': artist_id}, format='json')
+        # Logout
+        rlogout = self.client.post(self.logout_url, { 'artist_id': artist_id }, format='json')
+        self.assertEqual(rlogout.status_code, status.HTTP_200_OK, rlogout.data)
+
+        # Login should resume at social-media
         resp2 = self.client.post(self.login_url, login_payload, format='json')
         self.assertEqual(resp2.status_code, status.HTTP_200_OK, resp2.data)
         self.assertEqual(resp2.data['data']['onboarding_step'], 'social-media')
 
-        # Skip to payment
+        # Auth again
         token2 = resp2.data['data']['token']
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token2}')
-        r2 = self.client.post(skip_url, {'artist_id': artist_id, 'step': 'payment'}, format='json')
+
+        # Skip to payment
+        r2 = self.client.post(self.skip_url, { 'artist_id': artist_id, 'step': 'payment' }, format='json')
         self.assertEqual(r2.status_code, status.HTTP_200_OK, r2.data)
         self.assertEqual(r2.data['data']['next_step'], 'payment')
 
+        # Login again, should point to payment
         resp3 = self.client.post(self.login_url, login_payload, format='json')
         self.assertEqual(resp3.status_code, status.HTTP_200_OK)
         self.assertEqual(resp3.data['data']['onboarding_step'], 'payment')
 
-        # Skip to publisher
+        # Skip to publisher and verify
         token3 = resp3.data['data']['token']
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token3}')
-        r3 = self.client.post(skip_url, {'artist_id': artist_id, 'step': 'publisher'}, format='json')
+        r3 = self.client.post(self.skip_url, { 'artist_id': artist_id, 'step': 'publisher' }, format='json')
         self.assertEqual(r3.status_code, status.HTTP_200_OK, r3.data)
         self.assertEqual(r3.data['data']['next_step'], 'publisher')
 

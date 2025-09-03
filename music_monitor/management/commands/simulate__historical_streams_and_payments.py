@@ -3,7 +3,7 @@ from django.utils import timezone
 from django.db import transaction
 from decimal import Decimal
 from datetime import timedelta, datetime
-from django.db.models import Count, Avg, Q, F, Sum
+from django.db.models import Count, Avg, Q, F, Sum, Min, Max
 from django.core.mail import send_mail
 from django.conf import settings
 from collections import defaultdict
@@ -75,6 +75,12 @@ class Command(BaseCommand):
             action='store_true',
             help='Clear existing data before generating new data'
         )
+        parser.add_argument(
+            '--seed',
+            type=int,
+            default=None,
+            help='Random seed for reproducible simulations'
+        )
 
     def handle(self, *args, **options):
         self.simulate_only = options['simulate_only']
@@ -85,6 +91,10 @@ class Command(BaseCommand):
         self.start_date = options['start_date']
         self.peak_hours = options['peak_hours']
         self.clear_existing = options['clear_existing']
+        seed = options.get('seed')
+
+        if seed is not None:
+            random.seed(seed)
         
         if self.clear_existing:
             self.clear_existing_data()
@@ -166,8 +176,9 @@ class Command(BaseCommand):
             
             # Generate plays for all stations in parallel-friendly way
             daily_plays = self._generate_daily_plays_optimized(
-                stations, current_date, tracks, track_weights, 
-                seasonal_multiplier, weekly_multiplier, station_growth
+                stations, current_date, tracks, track_weights,
+                seasonal_multiplier, weekly_multiplier, station_growth,
+                day_index=day
             )
             
             # Process all plays for this day
@@ -291,8 +302,9 @@ class Command(BaseCommand):
         
         return daily_weights
 
-    def _generate_daily_plays_optimized(self, stations, date, tracks, track_weights, 
-                                       seasonal_multiplier, weekly_multiplier, station_growth):
+    def _generate_daily_plays_optimized(self, stations, date, tracks, track_weights,
+                                       seasonal_multiplier, weekly_multiplier, station_growth,
+                                       day_index: int):
         """Generate all plays for a single day across all stations - optimized"""
         all_plays = []
         day_start = date.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -301,8 +313,11 @@ class Command(BaseCommand):
         hourly_patterns = self._precalculate_hourly_patterns(seasonal_multiplier, weekly_multiplier)
         
         for station in stations:
-            station_activity = station_growth[station.id].get('current_activity', 0.8)
-            station_activity = max(0.3, station_activity + (station_growth[station.id]['growth_rate'] * 180))  # Approximate day calculation
+            base_activity = station_growth[station.id].get('base_activity', 0.8)
+            growth_rate = station_growth[station.id].get('growth_rate', 0.0)
+            # Evolve station activity over days for historical realism
+            station_activity = base_activity + (growth_rate * day_index)
+            station_activity = max(0.3, min(1.5, station_activity))
             
             # Generate plays for this station more efficiently
             station_plays = self._generate_station_plays_optimized(
@@ -683,11 +698,10 @@ class Command(BaseCommand):
             .order_by('earliest_match')  # Process chronologically
         )
 
-        if not grouped_matches:
+        total_groups = grouped_matches.count()
+        if total_groups == 0:
             self.stdout.write(self.style.WARNING("⚠️ No valid MatchCache groups to process"))
             return
-
-        total_groups = len(grouped_matches)
         self.stdout.write(f"📦 Processing {total_groups:,} valid groups...")
 
         # Pre-fund all station accounts efficiently
@@ -817,13 +831,13 @@ class Command(BaseCommand):
                 if not artist_account:
                     artist_account, _ = BankAccount.objects.get_or_create(
                         user=artist_user,
-                        defaults={'balance': Decimal('0.00'), 'currency': 'Ghc'}
+                        defaults={'balance': Decimal('0.00'), 'currency': 'GHS'}
                     )
                 
                 if not station_account:
                     station_account, _ = BankAccount.objects.get_or_create(
                         user=station_user,
-                        defaults={'balance': Decimal('50000.00'), 'currency': 'Ghc'}
+                        defaults={'balance': Decimal('50000.00'), 'currency': 'GHS'}
                     )
 
                 # Process payment
@@ -915,11 +929,11 @@ class Command(BaseCommand):
                 # Get or create bank accounts with higher default balance for stations
                 artist_account, _ = BankAccount.objects.get_or_create(
                     user=artist_user,
-                    defaults={'balance': Decimal('0.00'), 'currency': 'Ghc'}
+                    defaults={'balance': Decimal('0.00'), 'currency': 'GHS'}
                 )
                 station_account, _ = BankAccount.objects.get_or_create(
                     user=station_user,
-                    defaults={'balance': Decimal('50000.00'), 'currency': 'Ghc'}  # Higher default for historical data
+                    defaults={'balance': Decimal('50000.00'), 'currency': 'GHS'}  # Higher default for historical data
                 )
 
                 # Process payment using existing model methods
@@ -1008,7 +1022,7 @@ class Command(BaseCommand):
                 accounts_to_create.append(BankAccount(
                     user_id=user_id,
                     balance=initial_balance,
-                    currency='Ghc'
+                    currency='GHS'
                 ))
             else:
                 # Update existing accounts if needed
@@ -1082,16 +1096,16 @@ class Command(BaseCommand):
 # Usage Examples for Historical Data Generation:
 
 # Generate 6 months of historical data:
-# python manage.py simulate_history_streams_and_payments --historical --months 6 --start-date 2024-01-01
+# python manage.py simulate__historical_streams_and_payments --historical --months 6 --start-date 2024-01-01
 
 # Generate 1 year of historical data:
-# python manage.py simulate_history_streams_and_payments --historical --months 12 --start-date 2023-07-01
+# python manage.py simulate__historical_streams_and_payments --historical --months 12 --start-date 2023-07-01
 
 # Clear existing data and generate 6 months:
-# python manage.py simulate_history_streams_and_payments --historical --months 6 --start-date 2024-01-01 --clear-existing
+# python manage.py simulate__historical_streams_and_payments --historical --months 6 --start-date 2024-01-01 --clear-existing
 
 # Generate data only (no processing):
-# python manage.py simulate_history_streams_and_payments --historical --months 6 --simulate-only
+# python manage.py simulate__historical_streams_and_payments --historical --months 6 --simulate-only
 
 # Process existing data only:
-# python manage.py simulate_history_streams_and_payments --process-only
+# python manage.py simulate__historical_streams_and_payments --process-only
