@@ -131,7 +131,7 @@ services:
       - /zamio_frontend_pro/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://localhost:9001
+      - VITE_API_URL=http://zamio_app:8000
     depends_on:
       - zamio_app
     networks:
@@ -150,7 +150,43 @@ services:
       - /zamio_stations_pro/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://localhost:9001
+      - VITE_API_URL=http://zamio_app:8000
+    depends_on:
+      - zamio_app
+    networks:
+      - zamio_local_network
+
+  zamio_publisher:
+    build:
+      context: ../zamio_publisher
+      dockerfile: Dockerfile
+    ports:
+      - "9006:4175"
+    container_name: zamio_publisher
+    volumes:
+      - ../zamio_publisher:/zamio_publishers_pro
+      - /zamio_publishers_pro/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=http://zamio_app:8000
+    depends_on:
+      - zamio_app
+    networks:
+      - zamio_local_network
+
+  zamio_admin:
+    build:
+      context: ../zamio_admin
+      dockerfile: Dockerfile
+    ports:
+      - "9007:4176"
+    container_name: zamio_admin
+    volumes:
+      - ../zamio_admin:/zamio_admin_pro
+      - /zamio_admin_pro/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=http://zamio_app:8000
     depends_on:
       - zamio_app
     networks:

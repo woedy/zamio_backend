@@ -1,6 +1,6 @@
 from decimal import Decimal
 import random
-from artists.models import Album, Artist, Contributor, Fingerprint, Genre, Track, TrackFeedback
+from artists.models import Album, Artist, Contributor, Fingerprint, Genre, Track
 from bank_account.models import BankAccount
 from faker import Faker
 from django.core.management.base import BaseCommand
@@ -10,7 +10,6 @@ from django.db import transaction
 
 from django.contrib.auth import get_user_model
 
-from fan.models import Fan
 User = get_user_model()
 
 fake = Faker()
@@ -21,7 +20,7 @@ COUNTRIES = ["Ghana"]
 ROLES = ['Composer', 'Producer', 'Writer', 'Featured Artist', 'Mixer', 'Engineer']
 
 class Command(BaseCommand):
-    help = 'Generate random Artist profiles with linked Users, Albums, Tracks, Contributors, Feedbacks, and Fingerprints'
+    help = 'Generate random Artist profiles with linked Users, Albums, Tracks, Contributors, and Fingerprints (no Fans)'
 
     def add_arguments(self, parser):
         parser.add_argument('--count', type=int, default=10, help='Number of artists to generate')
@@ -36,11 +35,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         count = options['count']
-
-        fan_objects = list(Fan.objects.filter(active=True, is_archived=False))
-        if not fan_objects:
-            self.stdout.write(self.style.ERROR("No active Fan entries found. Please create Fan records first."))
-            return
 
         genres = list(Genre.objects.all())
         if not genres:
@@ -161,9 +155,9 @@ class Command(BaseCommand):
                                 percent_split = round(random.uniform(5, remaining / (contributor_count - i)), 2)
                             percent_splits.append(percent_split)
 
-                            contributors.append(Contributor(
+                        contributors.append(Contributor(
                                 track=track,
-                                name=fake.name(),
+                                user=user,
                                 role=role,
                                 percent_split=percent_split,
                                 active=True,
@@ -172,21 +166,7 @@ class Command(BaseCommand):
                         Contributor.objects.bulk_create(contributors)
                         self.stdout.write(f"  Created {contributor_count} contributors for track '{track.title}'")
 
-                        # Feedbacks
-                        feedback_count = random.randint(1, 3)
-                        feedbacks = []
-                        for _ in range(feedback_count):
-                            fan = random.choice(fan_objects)
-                            feedbacks.append(TrackFeedback(
-                                track=track,
-                                fan=fan,
-                                feedback=fake.paragraph(nb_sentences=2),
-                                rating=random.randint(1, 5),
-                                active=True,
-                                is_archived=False,
-                            ))
-                        TrackFeedback.objects.bulk_create(feedbacks)
-                        self.stdout.write(f"  Created {feedback_count} feedbacks for track '{track.title}'")
+                        # Skipping TrackFeedback generation (no Fan dependency in simulation)
 
                         # Fingerprints
                         fingerprint_count = random.randint(5, 10)
@@ -205,6 +185,7 @@ class Command(BaseCommand):
                 created_artists.append(artist)
 
         self.stdout.write(self.style.SUCCESS(
-            f"\n✅ Successfully created {len(created_artists)} artists with albums, tracks, contributors, feedbacks, and fingerprints."
+            f"\n✅ Successfully created {len(created_artists)} artists with albums, tracks, contributors, and fingerprints."
         ))
 #python manage.py generate_artists --count=20
+

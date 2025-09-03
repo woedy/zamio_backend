@@ -4,6 +4,7 @@ import subprocess
 import uuid
 import shutil
 from django.db.models import Sum, Count, Avg, F, Q
+from django.db.models.functions import TruncDate, TruncMonth
 
 from click import File
 from django.conf import settings
@@ -26,7 +27,7 @@ from artists.utils.fingerprint_tracks import simple_fingerprint
 from datetime import timedelta
 
 from core.utils import get_duration
-from music_monitor.models import PlayLog, StreamLog
+from music_monitor.models import PlayLog
 
 
 User = get_user_model()
@@ -137,7 +138,9 @@ def add_track(request):
 
         elif original_ext == '.wav':
             subprocess.run(['ffmpeg', '-i', input_path, '-b:a', '192k', mp3_path], check=True)
-            shutil.copyfile(input_path, wav_path)
+            # If the uploaded file is already WAV at the desired path, skip copying
+            if input_path != wav_path:
+                shutil.copyfile(input_path, wav_path)
 
         else:
             raise ValueError("Unsupported file type. Only .mp3 and .wav are supported.")
@@ -193,7 +196,9 @@ def add_track(request):
                 os.remove(path)
 
     # Success response
-    data['track_id'] = track.id
+    # Return both DB id and public track_id for frontend flows
+    data['db_id'] = track.id
+    data['track_id'] = track.track_id
     data['title'] = track.title
     data['isrc_code'] = track.isrc_code
 
@@ -362,6 +367,7 @@ def get_track_details_view(request):
     data = {}
 
     track_id = request.query_params.get('track_id')
+    period = request.query_params.get('period', 'all-time')
 
     if not track_id:
         errors['track_id'] = ['Track ID is required.']
@@ -378,7 +384,6 @@ def get_track_details_view(request):
     
     playlogs = PlayLog.objects.filter(track=track)
     play_count = playlogs.count()
-    stream_count = StreamLog.objects.filter(track=track).count()
 
     ts_qs = playlogs.values('station__name', 'station__region').annotate(plays=Count('id')).order_by('-plays')
    
@@ -406,7 +411,7 @@ def get_track_details_view(request):
     data['genre_name'] = track.genre.name
     data['duration'] = get_duration(track.duration)
     data['release_date'] = track.release_date
-    data['plays'] = int(play_count + stream_count)
+    data['plays'] = int(play_count)
     data['cover_art'] = track.cover_art.url
     data['audio_file_mp3'] = track.audio_file_mp3.url if track.audio_file_mp3 else None
 
@@ -420,23 +425,47 @@ def get_track_details_view(request):
 
     _contributors = []
     for contrib in contributors:
+        user = getattr(contrib, 'user', None)
+        first = getattr(user, 'first_name', '') if user else ''
+        last = getattr(user, 'last_name', '') if user else ''
+        username = getattr(user, 'username', '') if user else ''
+        email = getattr(user, 'email', '') if user else ''
+        display_name = (f"{first} {last}".strip() or username or email)
         con_data = {
             'role': contrib.role,
-            'name': contrib.name,
+            'name': display_name,
         }
         _contributors.append(con_data)
 
 
-    
-    playsOverTime = [
-        { "month": 'Jan', "revenue": 45000, "artists": 320, "stations": 15 },
-        { "month": 'Feb', "revenue": 52000, "artists": 380, "stations": 18 },
-        { "month": 'Mar', "revenue": 61000, "artists": 445, "stations": 22 },
-        { "month": 'Apr', "revenue": 58000, "artists": 510, "stations": 25 },
-        { "month": 'May', "revenue": 72000, "artists": 580, "stations": 28 },
-        { "month": 'Jun', "revenue": 85000, "artists": 650, "stations": 32 },
-        { "month": 'Jul', "revenue": 95000, "artists": 720, "stations": 35 },
-    ];
+    # Plays/Revenue Over Time for this track
+    base_qs = playlogs
+    if period in ('daily', 'weekly'):
+        time_qs = (
+            base_qs
+            .annotate(day=TruncDate('played_at'))
+            .values('day')
+            .annotate(revenue=Sum('royalty_amount'), artists=Count('id'), stations=Count('station', distinct=True))
+            .order_by('day')
+        )
+        playsOverTime = [
+            {"month": d['day'].strftime('%b %d'), "revenue": float(d['revenue'] or 0), "artists": d['artists'], "stations": d['stations']}
+            for d in time_qs
+        ]
+    elif period in ('monthly', 'all-time'):
+        time_qs = (
+            base_qs
+            .annotate(month=TruncMonth('played_at'))
+            .values('month')
+            .annotate(revenue=Sum('royalty_amount'), artists=Count('id'), stations=Count('station', distinct=True))
+            .order_by('month')
+        )
+        playsOverTime = [
+            {"month": d['month'].strftime('%b %Y'), "revenue": float(d['revenue'] or 0), "artists": d['artists'], "stations": d['stations']}
+            for d in time_qs
+        ]
+    else:
+        playsOverTime = []
 
 
     radioStations = [

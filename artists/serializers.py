@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from artists.models import Artist
-from music_monitor.models import MatchCache, PlayLog, StreamLog
+from music_monitor.models import MatchCache, PlayLog
 
 
 User = get_user_model()
@@ -45,7 +45,7 @@ class GenreSerializer(serializers.ModelSerializer):
 
 # Album Serializer
 class AlbumSerializer(serializers.ModelSerializer):
-    artist_name = serializers.CharField(source='artist.name', read_only=True)  # To include artist name in the response
+    artist_name = serializers.CharField(source='artist.stage_name', read_only=True)  # Include artist stage name
 
     class Meta:
         model = Album
@@ -63,11 +63,7 @@ class TrackSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_airplays(self, obj):
-        play_log_count = PlayLog.objects.filter(track=obj).count()
-        stream_count = StreamLog.objects.filter(track=obj).count()
-
-
-        return play_log_count + stream_count
+        return PlayLog.objects.filter(track=obj).count()
 
     
 
@@ -113,7 +109,7 @@ class ArtistPlayLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PlayLog
-        fields = ['id', 'track_title', 'station_name', 'start_time', 'stop_time', 'duration', 'avg_confidence_score', 'royalty_amount']
+        fields = ['id', 'track_title', 'station_name', 'start_time', 'stop_time', 'duration', 'royalty_amount']
 
 
     def get_start_time(self, obj):
@@ -138,7 +134,7 @@ class ArtistMatchCacheSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MatchCache
-        fields = ['id', 'track_title', 'station_name', 'matched_at', 'avg_confidence_score']
+        fields = ['id', 'track_title', 'station_name', 'matched_at']
 
     def get_matched_at(self, obj):
         return obj.matched_at.strftime('%Y-%m-%d ~ %H:%M:%S')

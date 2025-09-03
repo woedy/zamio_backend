@@ -25,7 +25,7 @@ from artists.utils.fingerprint_tracks import simple_fingerprint
 from datetime import timedelta
 
 from bank_account.models import BankAccount, Transaction
-from music_monitor.models import PlayLog, StreamLog
+from music_monitor.models import PlayLog
 
 
 User = get_user_model()
@@ -37,7 +37,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from rest_framework import status
-from django.db.models import Sum
+from django.db.models import Sum, Count
+from django.db.models.functions import TruncMonth
 from decimal import Decimal
 from datetime import datetime
 
@@ -71,6 +72,7 @@ def get_artist_payment_view(request):
         artist_account = BankAccount.objects.get(user=artist.user)
         total_balance = artist_account.balance
     except BankAccount.DoesNotExist:
+        artist_account = None
         total_balance = Decimal('0.00')
 
     artist_tracks = Track.objects.filter(artist=artist)
@@ -87,20 +89,22 @@ def get_artist_payment_view(request):
 
     print("Radio Royalty Total:", radio_total)
 
-    # STREAMING (StreamLogs)
-    streaming_total = StreamLog.objects.filter(track__in=artist_tracks, claimed=True).aggregate(
-        total=Sum('royalty_amount')
-    )['total'] or Decimal('0.00')
+    # Streaming removed from scope; keep as zero for compatibility
+    streaming_total = Decimal('0.00')
 
     # DISTRO: fallback — total minus other sources
     all_royalties = artist_tracks.aggregate(total=Sum('royalty_amount'))['total'] or Decimal('0.00')
     distro_total = all_royalties - radio_total - streaming_total
+    if distro_total < 0:
+        distro_total = Decimal('0.00')
 
     # TRANSACTIONS
-    transactions = Transaction.objects.filter(
-        bank_account=artist_account,
-        #status='Paid'
-    ).order_by('-timestamp')[:5]
+    transactions = Transaction.objects.none()
+    if artist_account:
+        transactions = Transaction.objects.filter(
+            bank_account=artist_account,
+            #status='Paid'
+        ).order_by('-timestamp')[:5]
 
     print("Transaction count:", transactions.count())
 
@@ -116,16 +120,37 @@ def get_artist_payment_view(request):
     wallet = {
         "total": float(total_balance),
         "sources": {
-            "stations": float(radio_total),
-            "streaming": float(streaming_total),
+            "radio": float(radio_total),
             "distro": float(distro_total),
         },
         "royaltyRates": {
             "radio": "GHS 1.20 per spin",
-            "streaming": "GHS 0.005 per stream",
         },
-        "history": history
+        "history": history,
     }
+
+    # Royalty Breakdown (monthly revenue and plays for recent months)
+    monthly_qs = (
+        PlayLog.objects
+        .filter(track__in=artist_tracks)
+        .annotate(month=TruncMonth('played_at'))
+        .values('month')
+        .annotate(revenue=Sum('royalty_amount'), plays=Count('id'), stations=Count('station', distinct=True))
+        .order_by('-month')[:7]
+    )
+
+    # Reverse to chronological order and format month as short name
+    breakdown = []
+    for row in reversed(list(monthly_qs)):
+        m = row['month']
+        breakdown.append({
+            "month": m.strftime('%b') if hasattr(m, 'strftime') else str(m),
+            "revenue": float(row['revenue'] or 0),
+            "plays": int(row['plays'] or 0),
+            "stations": int(row['stations'] or 0),
+        })
+
+    wallet["royaltyBreakdown"] = breakdown
 
     data['wallet'] = wallet
     payload['message'] = "Successful"

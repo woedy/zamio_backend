@@ -139,7 +139,7 @@ class ArtistGenre(models.Model):
     is_archived = models.BooleanField(default=False)
 
     def __str__(self):
-        return self.name
+        return f"{self.artist.stage_name} - {self.genre.name}"
 
 
 def get_default_track_cover_image():
@@ -232,7 +232,13 @@ class Contributor(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.name} ({self.role}) on {self.track.title}"
+        user = getattr(self, 'user', None)
+        first = getattr(user, 'first_name', '') if user else ''
+        last = getattr(user, 'last_name', '') if user else ''
+        username = getattr(user, 'username', '') if user else ''
+        email = getattr(user, 'email', '') if user else ''
+        name = (f"{first} {last}".strip() or username or email or "Contributor")
+        return f"{name} ({self.role}) on {self.track.title}"
 
 
 

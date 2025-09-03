@@ -5,7 +5,7 @@ from artists.views.artist_analytics_view import get_artist_analytics_view
 from artists.views.artist_hompage import get_artist_homedata
 from artists.views.artist_playlog_views import get_all_track_playlog_view
 from artists.views.artist_views import add_artist, archive_artist, edit_artist, get_all_archived_artists_view, get_all_artists_view, get_artist_details_view, get_artist_profile_view, unarchive_artist
-from artists.views.contributions_views import add_contributor, archive_contributor, delete_contributor, edit_contributor, get_all_archived_contributors_view, get_all_contributors_view, get_contributor_details_view, unarchive_contributor
+from artists.views.contributions_views import add_contributor, archive_contributor, delete_contributor, edit_contributor, get_all_archived_contributors_view, get_all_contributors_view, get_contributor_details_view, unarchive_contributor, get_artist_contributor_choices_view
 from artists.views.genre_views import add_genre, archive_genre, delete_genre, edit_genre, get_all_archived_genres_view, get_all_genres_view, unarchive_genre
 from artists.views.platforms_views import add_platform_availability, delete_platform_availability, get_all_platform_availability_view, get_platform_availability_details_view
 from artists.views.tracks_views import add_track, archive_track, delete_track, edit_track, get_all_archived_tracks_view, get_all_tracks_admin_view, get_all_tracks_view, get_edit_track_support_data_view, get_track_details_view, get_upload_track_support_data_view, unarchive_track, upload_track_cover_view
@@ -62,6 +62,7 @@ urlpatterns = [
 # 
     # # 👥 Contributors
     path('add-contributor/', add_contributor, name='add_contributor'),
+    path('get-artist-contributor-choices/', get_artist_contributor_choices_view, name='get_artist_contributor_choices_view'),
     path('get-all-contributors/', get_all_contributors_view, name='get_all_contributors'),
     path('get-contributor-details/', get_contributor_details_view, name='get_contributor_details'),
     path('edit-contributor/', edit_contributor, name='edit_contributor'),

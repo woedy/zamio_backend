@@ -396,7 +396,8 @@ def complete_artist_profile_view(request):
         artist.region = region
     if photo:
         artist.user.photo = photo
-        artist.user.save()
+    
+    artist.user.save()
 
     # Mark this step as complete
     artist.profile_completed = True

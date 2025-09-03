@@ -33,4 +33,4 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"\n✅ Successfully created Genres created"
         ))
-#python manage.py generate_artists
+#python manage.py generate_genre

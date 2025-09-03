@@ -100,9 +100,14 @@ class Command(BaseCommand):
             self.clear_existing_data()
         
         if not self.process_only:
-            if self.historical or self.months_to_simulate:
+            # Convenience: if requesting multi-day without --historical, treat as historical
+            if (self.historical or self.months_to_simulate or (self.days_to_simulate and self.days_to_simulate > 1)):
+                # Default to 12 months when historical requested without an explicit window
+                if self.historical and not self.months_to_simulate and (not self.days_to_simulate or self.days_to_simulate == 1):
+                    self.months_to_simulate = 12
                 self.simulate_historical_data()
             else:
+                # Single-day, near-real-time style simulation
                 self.simulate_realistic_radio_monitoring()
         
         if not self.simulate_only:
@@ -1109,3 +1114,6 @@ class Command(BaseCommand):
 
 # Process existing data only:
 # python manage.py simulate__historical_streams_and_payments --process-only
+
+
+#python manage.py simulate__historical_streams_and_payment --historical --months 12 --start-date 2024-09-03 --clear-existing --seed 42

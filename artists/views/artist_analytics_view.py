@@ -24,11 +24,12 @@ from django.core.files.base import ContentFile
 from artists.utils.fingerprint_tracks import simple_fingerprint
 from datetime import timedelta
 
-from music_monitor.models import PlayLog, StreamLog
+from music_monitor.models import PlayLog
 from django.utils import timezone
 from django.db.models import Count, Sum
 from datetime import datetime
 from django.db.models import F
+from django.db.models.functions import TruncDate, TruncMonth
 
 
 User = get_user_model()
@@ -43,6 +44,7 @@ def get_artist_analytics_view(request):
     payload, data, errors = {}, {}, {}
 
     artist_id = request.query_params.get('artist_id')
+    period = request.query_params.get('period', 'all-time')
     if not artist_id:
         errors['artist_id'] = ['Artist ID is required.']
     else:
@@ -56,29 +58,54 @@ def get_artist_analytics_view(request):
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    # Define timeframe (last 7 days)
-    today = timezone.now().date()
-    week_ago = today - timedelta(days=6)
+    # Define timeframe by period
+    now = timezone.now()
+    start_date = None
+    if period == 'daily':
+        start_date = now - timedelta(days=1)
+    elif period == 'weekly':
+        start_date = now - timedelta(weeks=1)
+    elif period == 'monthly':
+        start_date = now - timedelta(days=30)
+    elif period == 'all-time':
+        start_date = None
+    else:
+        errors['period'] = ['Invalid period. Choose from: daily, weekly, monthly, all-time']
+        return Response({'message': 'Errors', 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
 
     tracks = Track.objects.filter(artist=artist, is_archived=False)
 
-    # 1️⃣ Plays Over Time (past 7 days)
-    plays_daily = (
-        PlayLog.objects
-        .filter(track__in=tracks, played_at__date__range=(week_ago, today))
-        .extra({'date': "date(played_at)"})
-        .values('date')
-        .annotate(count=Count('id'))
-        .order_by('date')
-    )
+    # Base queryset filtered by period
+    base_qs = PlayLog.objects.filter(track__in=tracks)
+    if start_date:
+        base_qs = base_qs.filter(played_at__gte=start_date)
 
-    dummyPlays = [
-        {
-            "date": datetime.strptime(entry['date'], "%Y-%m-%d").strftime("%b %d").lstrip("0").replace(" 0", " "),
-            "count": entry['count']
-        }
-        for entry in plays_daily
-    ]
+    # 1️⃣ Plays Over Time
+    # If period suggests <= 30 days, group by day; else group by month
+    if period in ('daily', 'weekly', 'monthly'):
+        time_qs = (
+            base_qs
+            .annotate(day=TruncDate('played_at'))
+            .values('day')
+            .annotate(count=Count('id'))
+            .order_by('day')
+        )
+        playsOverTime = [
+            {"date": entry['day'].strftime('%b %d'), "count": entry['count']}
+            for entry in time_qs
+        ]
+    else:
+        time_qs = (
+            base_qs
+            .annotate(month=TruncMonth('played_at'))
+            .values('month')
+            .annotate(count=Count('id'))
+            .order_by('month')
+        )
+        playsOverTime = [
+            {"date": entry['month'].strftime('%b %Y'), "count": entry['count']}
+            for entry in time_qs
+        ]
 
 
     dummyPlaya22 = [
@@ -92,8 +119,7 @@ def get_artist_analytics_view(request):
 
     # 2️⃣ Top Stations (by play count)
     station_totals = (
-        PlayLog.objects
-        .filter(track__in=tracks)
+        base_qs
         .values(station_name=F('station__name'))
         .annotate(count=Count('id'))
         .order_by('-count')
@@ -109,8 +135,7 @@ def get_artist_analytics_view(request):
 
     # 3️⃣ Top Songs
     song_totals = (
-        PlayLog.objects
-        .filter(track__in=tracks)
+        base_qs
         .values(title=F('track__title'))
         .annotate(count=Count('id'))
         .order_by('-count')[:4]
@@ -118,8 +143,11 @@ def get_artist_analytics_view(request):
     topSongs = [{"title": st['title'], "plays": st['count']} for st in song_totals]
 
     data.update({
-        "playsOverTime": dummyPlays,
+        "period": period,
+        "playsOverTime": playsOverTime,
         "topStations": topStations,
+        # Temporary alias to match frontend expectation (setTopStations)
+        "setTopStations": topStations,
         "topSongs": topSongs,
     })
     payload.update({"message": "Successful", "data": data})

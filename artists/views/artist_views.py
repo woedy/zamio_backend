@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from artists.models import Artist, Contributor, Track
 from bank_account.models import BankAccount
 from core.utils import get_duration
-from music_monitor.models import PlayLog, StreamLog
+from music_monitor.models import PlayLog
 
 User = get_user_model()
 
@@ -26,8 +26,8 @@ def add_artist(request):
     errors = {}
 
     user_id = request.data.get('user_id', "")
-    name = request.data.get('name', "")
-    stage_name = request.data.get('stage_name', "")
+    name = request.data.get('name', "").strip()
+    stage_name = request.data.get('stage_name', "").strip()
     bio = request.data.get('bio', "")
     profile_image = request.data.get('profile_image', "")
     spotify_url = request.data.get('spotify_url', "")
@@ -37,8 +37,8 @@ def add_artist(request):
     website = request.data.get('website', "")
     contact_email = request.data.get('contact_email', "")
 
-    if not name:
-        errors['name'] = ['Artist name is required.']
+    if not (stage_name or name):
+        errors['stage_name'] = ['Stage name is required.']
 
     try:
         user = User.objects.get(user_id=user_id)
@@ -51,9 +51,11 @@ def add_artist(request):
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
+    if not stage_name and name:
+        stage_name = name
+
     artist = Artist.objects.create(
         user=user,
-        name=name,
         stage_name=stage_name,
         bio=bio,
         profile_image=profile_image,
@@ -68,7 +70,6 @@ def add_artist(request):
 
 
     data["artist_id"] = artist.artist_id
-    data["name"] = artist.name
     data["stage_name"] = artist.stage_name
 
     payload['message'] = "Successful"
@@ -183,7 +184,7 @@ def edit_artist(request):
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
     fields_to_update = [
-        'name', 'stage_name', 'bio', 'profile_image', 'spotify_url',
+        'stage_name', 'bio', 'profile_image', 'spotify_url',
         'shazam_url', 'instagram', 'twitter', 'website', 'contact_email', 'active'
     ]
     for field in fields_to_update:
@@ -194,7 +195,7 @@ def edit_artist(request):
     artist.save()
 
     data["artist_id"] = artist.id
-    data["name"] = artist.name
+    data["stage_name"] = artist.stage_name
 
     payload['message'] = "Successful"
     payload['data'] = data
@@ -304,7 +305,6 @@ def get_all_archived_artists_view(request):
 
     if search_query:
         all_artists = all_artists.filter(
-            Q(name__icontains=search_query) |
             Q(stage_name__icontains=search_query) |
             Q(bio__icontains=search_query)
         )
@@ -376,7 +376,7 @@ def get_artist_profile_view(request):
         "coverImage": None,
         "verified": artist.verified,
         "followers": artist.followers.count(),
-        "totalPlays": PlayLog.objects.filter(track__in=tracks).count() + StreamLog.objects.filter(track__in=tracks).count(),
+        "totalPlays": PlayLog.objects.filter(track__in=tracks).count(),
         "totalEarnings": float(BankAccount.objects.filter(user=artist.user).aggregate(Sum('balance'))['balance__sum'] or 0),
         "joinDate": artist.created_at.date().isoformat(),
         "location": artist.location_name or f"{artist.city}, {artist.country}" if hasattr(artist, 'country') else "",
@@ -393,9 +393,8 @@ def get_artist_profile_view(request):
     # Songs list
     songs = []
     for t in tracks:
-        plays_count = PlayLog.objects.filter(track=t).count() + StreamLog.objects.filter(track=t).count()
-        earnings = (PlayLog.objects.filter(track=t).aggregate(Sum('royalty_amount'))['royalty_amount__sum'] or 0) + \
-                   (StreamLog.objects.filter(track=t).aggregate(Sum('royalty_amount'))['royalty_amount__sum'] or 0)
+        plays_count = PlayLog.objects.filter(track=t).count()
+        earnings = (PlayLog.objects.filter(track=t).aggregate(Sum('royalty_amount'))['royalty_amount__sum'] or 0)
         contributors = Contributor.objects.filter(track=t, is_archived=False)
         songs.append({
             "id": t.id,
@@ -407,7 +406,11 @@ def get_artist_profile_view(request):
             "status": "Active" if t.active else "Inactive",
             "album": t.album.title if t.album else None,
             "genre": t.genre.name if t.genre else None,
-            "contributors": [{"name": c.name, "role": c.role, "percentage": float(c.percent_split)} for c in contributors],
+            "contributors": [{
+                "name": (f"{(c.user.first_name or '')} {(c.user.last_name or '')}".strip() or c.user.username or c.user.email),
+                "role": c.role,
+                "percentage": float(c.percent_split)
+            } for c in contributors],
             "recentPlays": [
                 {
                     "station": log.station.name,
@@ -419,25 +422,14 @@ def get_artist_profile_view(request):
             ]
         })
 
-    # Royalty history (mix of radio & streaming with status via transaction or claimed flag)
+    # Royalty history (radio only)
     radio_logs = PlayLog.objects.filter(track__in=tracks).order_by('-played_at')[:10]
-    streaming_logs = StreamLog.objects.filter(track__in=tracks).order_by('-played_at')[:10]
-    royaltyHistory = []
-    for log in radio_logs:
-        royaltyHistory.append({
-            "date": log.played_at.strftime("%Y-%m-%d"),
-            "amount": float(log.royalty_amount or 0),
-            "source": "Radio Airplay",
-            "status": "Paid" if log.claimed else "Pending"
-        })
-    for log in streaming_logs:
-        royaltyHistory.append({
-            "date": log.played_at.strftime("%Y-%m-%d"),
-            "amount": float(log.royalty_amount or 0),
-            "source": "Streaming",
-            "status": "Paid" if log.claimed else "Pending"
-        })
-    royaltyHistory = sorted(royaltyHistory, key=lambda x: x['date'], reverse=True)[:10]
+    royaltyHistory = [{
+        "date": log.played_at.strftime("%Y-%m-%d"),
+        "amount": float(log.royalty_amount or 0),
+        "source": "Radio Airplay",
+        "status": "Paid" if getattr(log, 'claimed', False) else "Pending"
+    } for log in radio_logs]
 
     # Recent play logs combined
     playlogs_qs = PlayLog.objects.filter(track__in=tracks).order_by('-played_at')[:5]
@@ -448,7 +440,6 @@ def get_artist_profile_view(request):
             "station": log.station.name,
             "date": log.played_at.strftime("%Y-%m-%d %H:%M"),
             "duration": str(get_duration(log.duration)) if log.duration else None,
-            "confidence": float(log.avg_confidence_score or 0),
             "earnings": float(log.royalty_amount or 0)
         } for log in playlogs_qs
     ]
@@ -459,6 +450,31 @@ def get_artist_profile_view(request):
         "royaltyHistory": royaltyHistory,
         "playLogs": playLogs
     })
+
+    # Publisher info (artist-level)
+    publisher = getattr(artist, 'publisher', None)
+    if publisher:
+        publisherInfo = {
+            "companyName": publisher.company_name,
+            "verified": publisher.verified,
+            "writerSplit": float(publisher.writer_split or 0),
+            "publisherSplit": float(publisher.publisher_split or 0),
+            "location": "{}{}{}".format(
+                f"{publisher.city}, " if publisher.city else "",
+                f"{publisher.region}, " if publisher.region else "",
+                publisher.country or ""
+            ).strip().strip(', '),
+        }
+    else:
+        publisherInfo = {
+            "companyName": None,
+            "verified": False,
+            "writerSplit": 0.0,
+            "publisherSplit": 0.0,
+            "location": "",
+        }
+
+    data["publisherInfo"] = publisherInfo
 
     payload['message'] = "Successful"
     payload['data'] = data
