@@ -6,8 +6,8 @@ from music_monitor.views.dispute_views import (
     get_all_station_disputes_view,
     get_all_artist_disputes_view,
     get_match_dispute_details_view,
-    get_match_dispute_analytics_view,
     review_match_for_dispute,
+    get_all_disputes_admin_view,
 )
 from music_monitor.views.match_log_views import (
     get_active_sessions,
@@ -54,7 +54,7 @@ urlpatterns = [
 
     path("stations-match-disputes/", get_all_station_disputes_view, name="get_all_station_disputes_view"),
     path("artist-disputes/", get_all_artist_disputes_view, name="get_all_artist_disputes_view"),
+    path("disputes/", get_all_disputes_admin_view, name="get_all_disputes_admin_view"),
     path("match-dispute-details/", get_match_dispute_details_view, name="get_match_dispute_details_view"),
-    path("match-dispute-analytics/", get_match_dispute_analytics_view, name="get_match_dispute_analytics_view"),
     path("review-match-for-dispute/", review_match_for_dispute, name="review_match_for_dispute"),
 ]

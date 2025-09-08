@@ -5,6 +5,12 @@ from stations.views.station_playlog_views import get_all_station_playlog_view
 from stations.views.station_programs_staff_views import add_program_staff, archive_program_staff, delete_program_staff, edit_program_staff, get_all_archived_program_staff_view, get_all_program_staff_view, get_program_staff_details_view, unarchive_program_staff
 from stations.views.station_programs_views import add_station_program, archive_station_program, delete_station_program, edit_station_program, get_all_archived_station_programs_view, get_all_station_programs_view, get_station_program_details_view, unarchive_station_program
 from stations.views.station_views import archive_station, edit_station, get_all_archived_stations_view, get_all_stations_view, get_station_details_view, unarchive_station
+from stations.views.station_stream_links_views import (
+    get_station_stream_links_view,
+    add_station_stream_link_view,
+    edit_station_stream_link_view,
+    delete_station_stream_link_view,
+)
 from . import views
 
 app_name = "stations"
@@ -42,5 +48,11 @@ urlpatterns = [
     
     path('dashboard/', get_station_dashboard_data, name='get_station_dashboard_data'),
     path('playlogs/', get_all_station_playlog_view, name='get_all_station_playlog_view'),
+
+    # Station Stream Links
+    path('get-station-stream-links/', get_station_stream_links_view, name='get_station_stream_links_view'),
+    path('add-station-stream-link/', add_station_stream_link_view, name='add_station_stream_link_view'),
+    path('edit-station-stream-link/', edit_station_stream_link_view, name='edit_station_stream_link_view'),
+    path('delete-station-stream-link/', delete_station_stream_link_view, name='delete_station_stream_link_view'),
 
 ]

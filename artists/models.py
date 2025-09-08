@@ -309,3 +309,26 @@ class Fingerprint(models.Model):
             models.Index(fields=['hash', 'track_id'])
         ]
         unique_together = ('track', 'offset', 'hash')
+
+
+# Invitation sent by a Publisher to invite an Artist onto the platform
+class ArtistInvitation(models.Model):
+    invited_by = models.ForeignKey('publishers.PublisherProfile', on_delete=models.CASCADE, related_name='artist_invitations')
+    email = models.EmailField()
+    stage_name = models.CharField(max_length=255, null=True, blank=True)
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('accepted', 'Accepted'), ('declined', 'Declined')], default='pending')
+    sent_on = models.DateTimeField(auto_now_add=True)
+
+    is_archived = models.BooleanField(default=False)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        from publishers.models import PublisherProfile
+        publisher = getattr(self, 'invited_by', None)
+        name = None
+        if publisher:
+            name = getattr(publisher, 'company_name', None) or getattr(getattr(publisher, 'user', None), 'email', None)
+        return f"Invite to {self.email} by {name or 'Publisher'}"

@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from music_monitor.models import MatchCache, PlayLog, StreamLog
+from music_monitor.models import MatchCache, PlayLog, StreamLog, Dispute
 from .models import PublisherProfile, PublishingAgreement
 
 
@@ -40,10 +40,14 @@ class PublisherPlayLogSerializer(serializers.ModelSerializer):
     start_time = serializers.SerializerMethodField()
     stop_time = serializers.SerializerMethodField()
     duration = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
 
     class Meta:
         model = PlayLog
-        fields = ['id', 'track_title', 'station_name', 'start_time', 'stop_time', 'duration', 'avg_confidence_score', 'royalty_amount']
+        fields = [
+            'id', 'track_title', 'station_name', 'start_time', 'stop_time', 'duration',
+            'avg_confidence_score', 'royalty_amount', 'flagged', 'status'
+        ]
 
 
     def get_start_time(self, obj):
@@ -59,6 +63,16 @@ class PublisherPlayLogSerializer(serializers.ModelSerializer):
         hours, remainder = divmod(total_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+    def get_status(self, obj):
+        try:
+            if getattr(obj, 'flagged', False):
+                return 'Flagged'
+            if Dispute.objects.filter(playlog=obj, dispute_status='Resolved').exists():
+                return 'Resolved'
+        except Exception:
+            pass
+        return ''
 
 
 class PublisherMatchCacheSerializer(serializers.ModelSerializer):
@@ -79,6 +93,14 @@ class PublisherMatchCacheSerializer(serializers.ModelSerializer):
 
 
 class PublishingAgreementSerializer(serializers.ModelSerializer):
+    track_title = serializers.CharField(source='track.title', read_only=True)
+    artist_name = serializers.CharField(source='songwriter.stage_name', read_only=True)
+    publisher_name = serializers.CharField(source='publisher.user.first_name', read_only=True)
+
     class Meta:
         model = PublishingAgreement
-        fields = ['id', 'publisher', 'songwriter', 'track', 'writer_share', 'publisher_share', 'contract_file', 'verified_by_admin', 'agreement_date', 'status', 'is_archived', 'active', 'created_at', 'updated_at']
+        fields = [
+            'id', 'publisher', 'publisher_name', 'songwriter', 'artist_name', 'track', 'track_title',
+            'writer_share', 'publisher_share', 'contract_file', 'verified_by_admin', 'agreement_date',
+            'status', 'is_archived', 'active', 'created_at', 'updated_at'
+        ]

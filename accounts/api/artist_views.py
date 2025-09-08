@@ -568,7 +568,11 @@ def complete_artist_publisher_view(request):
 
     artist_id = request.data.get('artist_id', "")
     publisher_id = request.data.get('publisher_id', "")
-    self_publish = request.data.get('self_publish', "")
+    self_publish_raw = request.data.get('self_publish', "")
+    # Coerce common truthy string forms to boolean
+    truthy = {True, 'true', 'True', '1', 1, 'on', 'yes', 'Yes'}
+    falsy = {False, 'false', 'False', '0', 0, 'off', 'no', 'No', None, ''}
+    self_publish = True if self_publish_raw in truthy else False if self_publish_raw in falsy else bool(self_publish_raw)
 
     if not artist_id:
         errors['artist_id'] = ['Artist ID is required.']
@@ -583,10 +587,13 @@ def complete_artist_publisher_view(request):
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    # Apply changes if provided
-    if self_publish == True:
+    # Apply changes
+    if self_publish is True:
         artist.self_publish = True
+        # Clear any previously set publisher if switching to self-publish
+        artist.publisher = None
     else:
+        artist.self_publish = False
         if publisher_id:
             try:
                 publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
@@ -594,10 +601,10 @@ def complete_artist_publisher_view(request):
             except PublisherProfile.DoesNotExist:
                 errors['publisher_id'] = ['Publisher not found.']
 
-            if errors:
-                payload['message'] = "Errors"
-                payload['errors'] = errors
-                return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+        if errors:
+            payload['message'] = "Errors"
+            payload['errors'] = errors
+            return Response(payload, status=status.HTTP_400_BAD_REQUEST)
             
     # Mark this step as complete
     artist.publisher_added = True
@@ -718,7 +725,6 @@ def logout_artist_view(request):
     payload['message'] = "Successful"
     payload['data'] = data
     return Response(payload)
-
 
 
 

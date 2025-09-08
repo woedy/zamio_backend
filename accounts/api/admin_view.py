@@ -95,9 +95,11 @@ def register_admin_view(request):
             user.user_type = "Admin"
             user.save()
 
+            # Initialize admin profile with required non-null fields
             admin_profile = MrAdmin.objects.create(
-                user=user
-
+                user=user,
+                city='',
+                postal_code='',
             )
             admin_profile.save()
 
@@ -378,4 +380,155 @@ def resend_email_verification(request):
     payload['message'] = "Successful"
     payload['data'] = data
 
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+# ---------- Admin Email Verification ----------
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.authentication import TokenAuthentication
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@authentication_classes([])
+def verify_admin_email(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    email_errors = []
+    token_errors = []
+
+    email = request.data.get('email', '').lower()
+    email_token = request.data.get('email_token', '')
+
+    if not email:
+        email_errors.append('Email is required.')
+
+    qs = User.objects.filter(email=email)
+    if not qs.exists():
+        email_errors.append('Email does not exist.')
+
+    if email_errors:
+        errors['email'] = email_errors
+
+    if not email_token:
+        token_errors.append('Token is required.')
+
+    user = None
+    if qs.exists():
+        user = qs.first()
+        if email_token != user.email_token:
+            token_errors.append('Invalid Token.')
+
+    if token_errors:
+        errors['email_token'] = token_errors
+
+    if email_errors or token_errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        token = Token.objects.get(user=user)
+    except Token.DoesNotExist:
+        token = Token.objects.create(user=user)
+
+    user.is_active = True
+    user.email_verified = True
+    user.save()
+
+    admin = MrAdmin.objects.filter(user=user).first()
+
+    data["user_id"] = user.user_id
+    if admin:
+        data["admin_id"] = admin.admin_id
+    data["email"] = user.email
+    data["first_name"] = user.first_name
+    data["last_name"] = user.last_name
+    data["photo"] = user.photo.url if getattr(user.photo, 'url', None) else None
+    data["token"] = token.key
+    data["country"] = user.country
+    data["phone"] = user.phone
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+
+    new_activity = AllActivity.objects.create(
+        user=user,
+        subject="Verify Email",
+        body=user.email + " just verified their email",
+    )
+    new_activity.save()
+
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+# ---------- Admin Onboarding ----------
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def admin_onboarding_status_view(request):
+    payload = {}
+    data = {}
+
+    user = request.user
+    admin = MrAdmin.objects.filter(user=user).first()
+    if not admin:
+        return Response({
+            'message': 'Errors',
+            'errors': {'admin': ['Admin profile not found.']}
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    # Determine next step: require city and postal_code at minimum
+    needs_profile = not (admin.city and admin.postal_code)
+    next_step = 'profile' if needs_profile else 'done'
+
+    data["user_id"] = user.user_id
+    data["admin_id"] = admin.admin_id
+    data["next_step"] = next_step
+
+    payload['message'] = 'Successful'
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def complete_admin_profile_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    address = request.data.get('address', '')
+    city = request.data.get('city', '')
+    postal_code = request.data.get('postal_code', '')
+
+    if not city:
+        errors['city'] = ['City is required.']
+    if not postal_code:
+        errors['postal_code'] = ['Postal code is required.']
+
+    admin = MrAdmin.objects.filter(user=request.user).first()
+    if not admin:
+        errors['admin'] = ['Admin profile not found.']
+
+    if errors:
+        payload['message'] = 'Errors'
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    if address:
+        admin.address = address
+    admin.city = city
+    admin.postal_code = postal_code
+    admin.active = True
+    admin.save()
+
+    data['admin_id'] = admin.admin_id
+    data['next_step'] = 'done'
+
+    payload['message'] = 'Successful'
+    payload['data'] = data
     return Response(payload, status=status.HTTP_200_OK)

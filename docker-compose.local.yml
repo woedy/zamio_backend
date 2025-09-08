@@ -49,7 +49,7 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       # Local development settings
-      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app,31.97.156.207"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,host.docker.internal,db,redis,zamio_app,31.97.156.207"
       CSRF_TRUSTED_ORIGINS: "http://localhost:9001,http://127.0.0.1:9001,http://31.97.156.207:9001,http://localhost:9002,http://127.0.0.1:9002"
       BASE_URL: "http://localhost:9001"
     volumes:
@@ -79,7 +79,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app,31.97.156.207"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,host.docker.internal,db,redis,zamio_app,31.97.156.207"
       CSRF_TRUSTED_ORIGINS: "http://localhost:9001,http://127.0.0.1:9001,http://31.97.156.207:9001,http://localhost:9002,http://127.0.0.1:9002"
       BASE_URL: "http://localhost:9001"
     volumes:
@@ -105,7 +105,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,db,redis,zamio_app,31.97.156.207"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,host.docker.internal,db,redis,zamio_app,31.97.156.207"
       CSRF_TRUSTED_ORIGINS: "http://localhost:9001,http://127.0.0.1:9001,http://31.97.156.207:9001,http://localhost:9002,http://127.0.0.1:9002"
       BASE_URL: "http://localhost:9001"
     volumes:
@@ -131,7 +131,7 @@ services:
       - /zamio_frontend_pro/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://zamio_app:8000
+      - VITE_API_URL=http://host.docker.internal:9001
     depends_on:
       - zamio_app
     networks:
@@ -150,7 +150,7 @@ services:
       - /zamio_stations_pro/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://zamio_app:8000
+      - VITE_API_URL=http://host.docker.internal:9001
     depends_on:
       - zamio_app
     networks:
@@ -168,7 +168,7 @@ services:
       - /zamio_publishers_pro/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://zamio_app:8000
+      - VITE_API_URL=http://host.docker.internal:9001
     depends_on:
       - zamio_app
     networks:
@@ -186,7 +186,7 @@ services:
       - /zamio_admin_pro/node_modules
     environment:
       - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://zamio_app:8000
+      - VITE_API_URL=http://host.docker.internal:9001
     depends_on:
       - zamio_app
     networks:

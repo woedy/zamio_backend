@@ -406,13 +406,14 @@ def get_track_details_view(request):
 
 
     data['title'] = track.title
-    data['artist_name'] = track.artist.stage_name
-    data['album_title'] = track.album.title
-    data['genre_name'] = track.genre.name
-    data['duration'] = get_duration(track.duration)
+    data['artist_name'] = getattr(track.artist, 'stage_name', None)
+    data['album_title'] = track.album.title if getattr(track, 'album', None) else None
+    data['genre_name'] = track.genre.name if getattr(track, 'genre', None) else None
+    # duration can be None for older tracks; render a safe default string
+    data['duration'] = get_duration(track.duration) if getattr(track, 'duration', None) else "00:00:00"
     data['release_date'] = track.release_date
     data['plays'] = int(play_count)
-    data['cover_art'] = track.cover_art.url
+    data['cover_art'] = track.cover_art.url if getattr(track.cover_art, 'url', None) else None
     data['audio_file_mp3'] = track.audio_file_mp3.url if track.audio_file_mp3 else None
 
     data['topStations'] = _top_station

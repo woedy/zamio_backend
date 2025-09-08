@@ -17,8 +17,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
-from publishers.models import PublisherProfile
-from music_monitor.models import PlayLog, StreamLog
+from publishers.models import PublisherProfile, PublishingAgreement
+from music_monitor.models import PlayLog, StreamLog, Dispute
+from artists.models import Track, Artist
 
 
 
@@ -91,7 +92,10 @@ def get_publisher_homedata(request):
     totalPlays = playlogs.count()
     totalStations = playlogs.values('station').distinct().count()
     totalEarnings = playlogs.aggregate(total=Sum('royalty_amount'))['total'] or 0
+    radioPlays = playlogs.filter(source='Radio').count()
     streamingPlays = playlogs.filter(source='Streaming').count()
+    radioEarnings = playlogs.filter(source='Radio').aggregate(total=Sum('royalty_amount'))['total'] or 0
+    streamingEarnings = playlogs.filter(source='Streaming').aggregate(total=Sum('royalty_amount'))['total'] or 0
     confidence_score = playlogs.aggregate(avg=Avg('avg_confidence_score'))['avg'] or 0
     active_regions = playlogs.values('station__region').exclude(station__region__isnull=True).distinct().count()
 
@@ -113,6 +117,24 @@ def get_publisher_homedata(request):
         "confidence": int(t['confidence'] or 0),
         "stations": t['stations']
     } for t in top_tracks]
+
+    # Catalog metrics
+    worksCount = Track.objects.filter(publisher=publisher, is_archived=False).count()
+    writersCount = (
+        Artist.objects.filter(track__publisher=publisher)
+        .distinct()
+        .count()
+    )
+    agreementsCount = PublishingAgreement.objects.filter(publisher=publisher, is_archived=False).count()
+
+    # Pipeline and issues
+    unclaimedCount = playlogs.filter(claimed=False).count()
+    disputesCount = Dispute.objects.filter(playlog__in=playlogs).count()
+    pipeline = {
+        "accrued": round(totalEarnings or 0, 2),
+        "unclaimedCount": unclaimedCount,
+        "disputesCount": disputesCount,
+    }
 
     # Plays Over Time
     duration_days = (end_date - start_date).days if start_date and end_date else None
@@ -163,34 +185,33 @@ def get_publisher_homedata(request):
             "region": "Various"
         })
 
-    # Fan Demographics
-    fanlinks = StreamLog.objects.filter(track__publisher=publisher, active=True, fan__isnull=False)
-    fan_age = fanlinks.annotate(age=timezone.now().year - ExtractYear('fan__dob'))
-    total_fans = fan_age.values('fan').distinct().count() or 1
-    buckets = {
-        "18-24": Q(age__gte=18, age__lte=24),
-        "25-34": Q(age__gte=25, age__lte=34),
-        "35-44": Q(age__gte=35, age__lte=44),
-        "45-54": Q(age__gte=45, age__lte=54),
-        "55+": Q(age__gte=55),
-    }
-    fanDemographics = [{
-        "ageGroup": label,
-        "percentage": round((fan_age.filter(cond).values('fan').distinct().count() / total_fans) * 100, 1),
-    } for label, cond in buckets.items()]
+    # Recent activity (last 10 playlogs)
+    recent_qs = playlogs.select_related('track', 'station').order_by('-played_at')[:10]
+    recentPlays = [
+        {
+            "track": pl.track.title,
+            "station": getattr(pl.station, 'name', 'Unknown'),
+            "region": getattr(pl.station, 'region', 'Unknown'),
+            "playedAt": pl.played_at.isoformat() if pl.played_at else None,
+            "source": pl.source,
+            "confidence": float(pl.avg_confidence_score or 0),
+            "royalty": float(pl.royalty_amount or 0),
+        }
+        for pl in recent_qs
+    ]
 
-    # Performance Score
+    # Performance Score (kept internal; not returned yet)
     overall = round((confidence_score / 100) * 10, 1)
     lookback = duration_days if duration_days else 7
     prev_plays = playlogs.filter(played_at__range=(start_date - timedelta(days=lookback), start_date)).count() if start_date else 0
     growth = round(((totalPlays - prev_plays) / prev_plays * 100), 1) if prev_plays else 100.0
-    unique_fans = fanlinks.values('fan').distinct().count()
+    # Guard against undefined sources; these metrics are not part of the response
+    unique_fans = 0
     fan_engagement = round((totalPlays / (unique_fans or 1)), 1)
-    performanceScore = {
-        "overall": overall,
-        "airplayGrowth": growth,
-        "RegionalReach": active_regions,
-        "fanEngagement": fan_engagement
+    # Split info
+    splits = {
+        "publisher": float(publisher.publisher_split or 0),
+        "writers": float(publisher.writer_split or 0),
     }
 
 
@@ -198,19 +219,26 @@ def get_publisher_homedata(request):
         "period": 'custom' if sd_str and ed_str else period,
         "start_date": sd_str,
         "end_date": ed_str,
-        "publisherName": publisher.user.first_name,
+        "publisherName": (publisher.company_name or f"{publisher.user.first_name or ''} {publisher.user.last_name or ''}".strip()),
         "totalPlays": totalPlays,
         "totalStations": totalStations,
         "totalEarnings": round(totalEarnings, 2),
+        "radioPlays": radioPlays,
         "streamingPlays": streamingPlays,
+        "radioEarnings": round(radioEarnings, 2),
+        "streamingEarnings": round(streamingEarnings, 2),
         "confidenceScore": round(confidence_score, 1),
         "activeRegions": active_regions,
+        "worksCount": worksCount,
+        "writersCount": writersCount,
+        "agreementsCount": agreementsCount,
         "topSongs": topSongs,
         "playsOverTime": playsOverTime,
         "ghanaRegions": ghanaRegions,
         "stationBreakdown": stationBreakdown,
-        "fanDemographics": fanDemographics,
-        "performanceScore": performanceScore
+        "recentPlays": recentPlays,
+        "pipeline": pipeline,
+        "splits": splits,
     })
 
     return Response({"message": "Successful", "data": data}, status=status.HTTP_200_OK)

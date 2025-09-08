@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from music_monitor.models import MatchCache, PlayLog
+from music_monitor.models import MatchCache, PlayLog, Dispute
 from .models import Station, StationProgram, ProgramStaff
 
 # Station Serializer
@@ -50,10 +50,14 @@ class StationPlayLogSerializer(serializers.ModelSerializer):
     start_time = serializers.SerializerMethodField()
     stop_time = serializers.SerializerMethodField()
     duration = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
 
     class Meta:
         model = PlayLog
-        fields = ['id', 'track_title', 'artist_name', 'start_time', 'stop_time', 'duration', 'avg_confidence_score', 'royalty_amount', 'flagged']
+        fields = [
+            'id', 'track_title', 'artist_name', 'start_time', 'stop_time', 'duration',
+            'avg_confidence_score', 'royalty_amount', 'flagged', 'status'
+        ]
 
 
     def get_start_time(self, obj):
@@ -69,6 +73,18 @@ class StationPlayLogSerializer(serializers.ModelSerializer):
         hours, remainder = divmod(total_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+    def get_status(self, obj):
+        # If flagged, show Flagged; else if any related Dispute is Resolved, show Resolved; else blank
+        try:
+            if getattr(obj, 'flagged', False):
+                return 'Flagged'
+            # Check for a resolved dispute on this playlog
+            if Dispute.objects.filter(playlog=obj, dispute_status='Resolved').exists():
+                return 'Resolved'
+        except Exception:
+            pass
+        return ''
 
 
 class StationMatchCacheSerializer(serializers.ModelSerializer):

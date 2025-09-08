@@ -24,6 +24,7 @@ from activities.models import AllActivity
 from bank_account.models import BankAccount
 from core.utils import generate_email_token, is_valid_email, is_valid_password
 from publishers.models import PublisherProfile
+from django.db.models import Q
 
 
 User = get_user_model()
@@ -322,8 +323,8 @@ class PublisherLogin(APIView):
         user.fcm_token = fcm_token
         user.save()
 
-        # Determine next onboarding step
-        publisher.onboarding_step = publisher.get_next_onboarding_step()
+        # Do not override stored onboarding_step here.
+        # It is updated by completion endpoints or explicit skip actions.
         publisher.save()
 
         data = {
@@ -390,13 +391,19 @@ def complete_publisher_profile_view(request):
 
     # Apply changes if provided
     if bio:
-        publisher.bio = bio
+        # Store bio if field exists; ignore otherwise
+        try:
+            setattr(publisher, 'bio', bio)
+        except Exception:
+            pass
     if country:
         publisher.country = country
     if region:
         publisher.region = region
     if photo:
-        publisher.photo = photo
+        # Align with artist flow: store photo on the user model
+        publisher.user.photo = photo
+        publisher.user.save()
 
     # Mark this step as complete (profile)
     publisher.profile_completed = True
@@ -422,14 +429,14 @@ def complete_revenue_split_view(request):
     errors = {}
 
     publisher_id = request.data.get('publisher_id', "")
-    writer_split = request.data.get('writer_split', "")
-    publisher_split = request.data.get('publisher_split', "")
+    writer_split_raw = request.data.get('writer_split', "")
+    publisher_split_raw = request.data.get('publisher_split', "")
 
     if not publisher_id:
         errors['publisher_id'] = ['PublisherProfile ID is required.']
-    if not writer_split:
+    if not writer_split_raw:
         errors['writer_split'] = ['Writer Split is required.']
-    if not publisher_split:
+    if not publisher_split_raw:
         errors['publisher_split'] = ['Publisher Split is required.']
 
     try:
@@ -442,11 +449,45 @@ def complete_revenue_split_view(request):
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
+    # Coerce to Decimal and validate totals
+    try:
+        w = Decimal(str(writer_split_raw))
+        p = Decimal(str(publisher_split_raw))
+    except Exception:
+        payload['message'] = 'Errors'
+        payload['errors'] = {
+            'writer_split': ['Writer split must be a number.'],
+            'publisher_split': ['Publisher split must be a number.'],
+        }
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    if w < 0 or p < 0:
+        payload['message'] = 'Errors'
+        payload['errors'] = {
+            'writer_split': ['Must be >= 0.'],
+            'publisher_split': ['Must be >= 0.'],
+        }
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    if w > 100 or p > 100:
+        payload['message'] = 'Errors'
+        payload['errors'] = {
+            'writer_split': ['Must be <= 100.'],
+            'publisher_split': ['Must be <= 100.'],
+        }
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    if (w + p) != Decimal('100'):
+        payload['message'] = 'Errors'
+        payload['errors'] = {
+            'writer_split': ['Writer + Publisher must equal 100%.'],
+            'publisher_split': ['Writer + Publisher must equal 100%.'],
+        }
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
     # Apply changes if provided
-    if publisher_split:
-        publisher.publisher_split = publisher_split
-    if writer_split:
-        publisher.writer_split = writer_split
+    publisher.publisher_split = p
+    publisher.writer_split = w
 
     # Mark this step as complete
     publisher.revenue_split_completed = True
@@ -472,10 +513,7 @@ def complete_link_artist_view(request):
     errors = {}
 
     publisher_id = request.data.get('publisher_id', "")
-    bio = request.data.get('bio', "")
-    country = request.data.get('country', "")
-    region = request.data.get('region', "")
-    photo = request.data.get('photo', "")
+    artist_id = request.data.get('artist_id', "")
 
     if not publisher_id:
         errors['publisher_id'] = ['PublisherProfile ID is required.']
@@ -490,17 +528,24 @@ def complete_link_artist_view(request):
         payload['errors'] = errors
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
-    # Apply changes if provided
-    if bio:
-        publisher.bio = bio
-    if country:
-        publisher.country = country
-    if region:
-        publisher.region = region
-    if photo:
-        publisher.photo = photo
+    # If an artist_id is provided, link the artist to this publisher
+    if artist_id:
+        from artists.models import Artist
+        try:
+            artist = Artist.objects.get(artist_id=artist_id)
+        except Artist.DoesNotExist:
+            payload['message'] = 'Errors'
+            payload['errors'] = {'artist_id': ['Artist not found.']}
+            return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+        # Link: set publisher on artist and clear self_publish
+        artist.publisher = publisher
+        try:
+            setattr(artist, 'self_publish', False)
+        except Exception:
+            pass
+        artist.save()
 
-    # Mark this step as complete (link artist)
+    # Mark this step as complete
     publisher.link_artist_completed = True
 
     # Move to next onboarding step
@@ -611,28 +656,160 @@ def onboard_publisher_view(request):
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
 def list_publishers_view(request):
+    """Paginated, searchable list of publishers for admin/frontend use."""
     payload = {}
     data = {}
 
-    qs = PublisherProfile.objects.all()
-    # Prefer active publishers when field exists
+    search_query = request.query_params.get('search', '').strip()
+    page_number = request.query_params.get('page', 1)
+    page_size = int(request.query_params.get('page_size', 10))
+
+    qs = PublisherProfile.objects.filter(is_archived=False)
+    if search_query:
+        qs = qs.filter(
+            Q(company_name__icontains=search_query) |
+            Q(user__first_name__icontains=search_query) |
+            Q(user__last_name__icontains=search_query) |
+            Q(country__icontains=search_query)
+        )
+
+    # Order newest first
+    qs = qs.order_by('-created_at')
+
+    from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
+    paginator = Paginator(qs, page_size)
     try:
-        qs = qs.filter(active=True)
-    except Exception:
-        pass
+        paginated = paginator.page(page_number)
+    except PageNotAnInteger:
+        paginated = paginator.page(1)
+    except EmptyPage:
+        paginated = paginator.page(paginator.num_pages)
 
     publishers = []
-    for p in qs:
+    for p in paginated:
+        photo = None
+        try:
+            if getattr(p.user, 'photo', None):
+                photo = p.user.photo.url
+        except Exception:
+            photo = None
         publishers.append({
             'publisher_id': p.publisher_id,
             'company_name': p.company_name,
             'country': getattr(p, 'country', None),
             'verified': getattr(p, 'verified', False),
+            'photo': photo,
+            'registered_on': getattr(p.user, 'timestamp', None)
         })
 
     data['publishers'] = publishers
+    data['pagination'] = {
+        'page_number': paginated.number,
+        'total_pages': paginator.num_pages,
+        'next': paginated.next_page_number() if paginated.has_next() else None,
+        'previous': paginated.previous_page_number() if paginated.has_previous() else None,
+        'count': paginator.count,
+        'page_size': page_size,
+    }
+
     payload['message'] = 'Successful'
     payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def skip_publisher_onboarding_view(request):
+    payload = {}
+    data = {}
+    errors = {}
+
+    publisher_id = request.data.get('publisher_id', "")
+    step = request.data.get('step', "")
+
+    if not publisher_id:
+        errors['publisher_id'] = ['Publisher ID is required.']
+    if not step:
+        errors['step'] = ['Target step is required.']
+
+    try:
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['Publisher not found.']
+        publisher = None
+
+    # Validate requested step (allow 'done' as terminal step)
+    valid_steps = set(dict(PublisherProfile.ONBOARDING_STEPS).keys())
+    if publisher and step not in valid_steps and step != 'done':
+        errors['step'] = ['Invalid onboarding step.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    publisher.onboarding_step = step
+    publisher.save()
+
+    data['publisher_id'] = publisher.publisher_id
+    data['next_step'] = publisher.onboarding_step
+
+    payload['message'] = 'Successful'
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def invite_artist_view(request):
+    """Send an invite email to an artist to join/link with this publisher."""
+    payload = {}
+    errors = {}
+
+    publisher_id = request.data.get('publisher_id', "")
+    email = request.data.get('email', "").strip().lower()
+    message = request.data.get('message', "").strip()
+
+    if not publisher_id:
+        errors['publisher_id'] = ['PublisherProfile ID is required.']
+    if not email:
+        errors['email'] = ['Artist email is required.']
+    elif not is_valid_email(email):
+        errors['email'] = ['Valid email required.']
+
+    try:
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['PublisherProfile not found.']
+
+    if errors:
+        payload['message'] = 'Errors'
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        subject = f"Invitation to join ZamIO from {publisher.company_name}"
+        default_msg = (
+            f"Hello,\n\n{publisher.company_name} invites you to join ZamIO to manage your royalties and link your catalog.\n"
+            f"Create your artist account here: {settings.BASE_URL}/sign-up?as=artist&email={email}\n\n"
+            f"Message: {message or '—'}\n\nRegards,\nZamIO Team"
+        )
+        send_mail(
+            subject,
+            default_msg,
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=False,
+        )
+    except Exception as e:
+        payload['message'] = 'Errors'
+        payload['errors'] = {'email': [f'Failed to send invite: {e}']}
+        return Response(payload, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    payload['message'] = 'Successful'
+    payload['data'] = {'invited_email': email}
     return Response(payload, status=status.HTTP_200_OK)
 
 

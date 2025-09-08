@@ -143,8 +143,9 @@ def edit_station(request):
 
     station_id = request.data.get('station_id', '')
     name = request.data.get('name', '')
-    location = request.data.get('location', '')
     phone = request.data.get('phone', '')
+    city = request.data.get('city', '')
+    region = request.data.get('region', '')
     country = request.data.get('country', '')
     photo = request.data.get('photo', '')
     about = request.data.get('about', '')
@@ -163,8 +164,9 @@ def edit_station(request):
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
     station.name = name or station.name
-    station.location = location or station.location
     station.phone = phone or station.phone
+    station.city = city or station.city
+    station.region = region or station.region
     station.country = country or station.country
     station.photo = photo or station.photo
     station.about = about or station.about

@@ -183,8 +183,9 @@ def edit_publisher(request):
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
     fields_to_update = [
-        'name', 'stage_name', 'bio', 'profile_image', 'spotify_url',
-        'shazam_url', 'instagram', 'twitter', 'website', 'contact_email', 'active'
+        'company_name', 'region', 'city', 'country', 'location_name',
+        'tax_id', 'bank_account', 'momo_account', 'writer_split', 'publisher_split',
+        'verified'
     ]
     for field in fields_to_update:
         value = request.data.get(field)
@@ -366,17 +367,35 @@ def get_publisher_profile_view(request):
         return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
 
-    # PublisherProfile info
+    # PublisherProfile info (detailed)
     publisherData = {
-        "name": f"{publisher.user.first_name or ''} {publisher.user.last_name or ''}".strip(),
-   
+        "publisher_id": publisher.publisher_id,
+        "companyName": publisher.company_name,
+        "verified": publisher.verified,
+        "region": publisher.region,
+        "city": publisher.city,
+        "country": publisher.country,
+        "locationName": publisher.location_name,
+        "writerSplit": float(publisher.writer_split or 0),
+        "publisherSplit": float(publisher.publisher_split or 0),
+        "bankAccount": publisher.bank_account,
+        "momoAccount": publisher.momo_account,
+        "taxId": publisher.tax_id,
+        "onboarding": {
+            "profile_completed": publisher.profile_completed,
+            "revenue_split_completed": publisher.revenue_split_completed,
+            "link_artist_completed": publisher.link_artist_completed,
+            "payment_info_added": publisher.payment_info_added,
+            "step": publisher.get_next_onboarding_step() if hasattr(publisher, 'get_next_onboarding_step') else None,
+        },
+        "user": {
+            "name": f"{publisher.user.first_name or ''} {publisher.user.last_name or ''}".strip(),
+            "email": getattr(publisher.user, 'email', None),
+            "photo": publisher.user.photo.url if getattr(publisher.user, 'photo', None) else None,
+        },
     }
 
-
-
-    data.update({
-        "publisherData": publisherData,
-    })
+    data.update({"publisherData": publisherData})
 
     payload['message'] = "Successful"
     payload['data'] = data

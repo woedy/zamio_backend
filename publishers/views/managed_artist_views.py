@@ -33,7 +33,27 @@ def get_all_managed_artists_view(request):
     page_number = request.query_params.get('page', 1)
     page_size = 10
 
-    all_artists = Artist.objects.filter(is_archived=False)
+    # Only artists linked to the current publisher
+    from publishers.models import PublisherProfile
+    publisher = None
+    publisher_id = request.query_params.get('publisher_id')
+    if publisher_id:
+        try:
+            publisher = PublisherProfile.objects.get(publisher_id=publisher_id)
+        except PublisherProfile.DoesNotExist:
+            errors['publisher_id'] = ['PublisherProfile not found.']
+    else:
+        try:
+            publisher = PublisherProfile.objects.get(user=request.user)
+        except PublisherProfile.DoesNotExist:
+            errors['publisher'] = ['Publisher profile not found for user.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    all_artists = Artist.objects.filter(is_archived=False, publisher=publisher)
 
     if search_query:
         all_artists = all_artists.filter(
@@ -55,6 +75,7 @@ def get_all_managed_artists_view(request):
     data['pagination'] = {
         'page_number': paginated_artists.number,
         'total_pages': paginator.num_pages,
+        'count': paginator.count,
         'next': paginated_artists.next_page_number() if paginated_artists.has_next() else None,
         'previous': paginated_artists.previous_page_number() if paginated_artists.has_previous() else None,
     }

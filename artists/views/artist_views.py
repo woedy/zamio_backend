@@ -474,6 +474,7 @@ def get_artist_profile_view(request):
             "location": "",
         }
 
+    publisherInfo["selfPublished"] = bool(getattr(artist, 'self_publish', False))
     data["publisherInfo"] = publisherInfo
 
     payload['message'] = "Successful"

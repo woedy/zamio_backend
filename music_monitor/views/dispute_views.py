@@ -11,8 +11,7 @@ from music_monitor.models import Dispute, MatchCache, PlayLog
 from music_monitor.serializers import DisputeSerializer, MatchCacheSerializer, PlayLogSerializer
 from stations.models import Station, StationProgram
 from rest_framework.authentication import TokenAuthentication
-from django.db.models.functions import TruncDate, TruncMonth
-from django.db.models import Count, Sum, Avg
+ 
 
 
 
@@ -238,6 +237,83 @@ def get_all_artist_disputes_view(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
+def get_all_disputes_admin_view(request):
+    """Admin-wide disputes listing with pagination, search and optional filters."""
+    payload, data, errors = {}, {}, {}
+
+    search_query = request.query_params.get('search', '').strip()
+    page_number = int(request.query_params.get('page', 1))
+    status_filter = request.query_params.get('status', '').strip()
+    station_name = request.query_params.get('station', '').strip()
+    artist_name = request.query_params.get('artist', '').strip()
+    page_size = int(request.query_params.get('page_size', 10))
+
+    qs = Dispute.objects.select_related('playlog__track__artist', 'playlog__station').filter(is_archived=False)
+
+    if search_query:
+        qs = qs.filter(
+            Q(dispute_comments__icontains=search_query)
+            | Q(resolve_comments__icontains=search_query)
+            | Q(playlog__track__title__icontains=search_query)
+            | Q(playlog__station__name__icontains=search_query)
+            | Q(playlog__track__artist__stage_name__icontains=search_query)
+        )
+
+    if status_filter:
+        qs = qs.filter(dispute_status=status_filter)
+    if station_name:
+        qs = qs.filter(playlog__station__name__icontains=station_name)
+    if artist_name:
+        qs = qs.filter(playlog__track__artist__stage_name__icontains=artist_name)
+
+    qs = qs.order_by('-created_at')
+
+    paginator = Paginator(qs, page_size)
+    try:
+        page = paginator.page(page_number)
+    except PageNotAnInteger:
+        page = paginator.page(1)
+    except EmptyPage:
+        page = paginator.page(paginator.num_pages)
+
+    from django.utils.timesince import timesince
+    rows = []
+    for d in page.object_list:
+        pl = d.playlog
+        rows.append({
+            'id': d.id,
+            'status': d.dispute_status,
+            'comment': d.dispute_comments,
+            'resolution': d.resolve_comments,
+            'track_title': getattr(pl.track, 'title', None),
+            'artist_name': getattr(pl.track.artist, 'stage_name', None) if getattr(pl, 'track', None) and getattr(pl.track, 'artist', None) else None,
+            'station_name': getattr(pl.station, 'name', None),
+            'start_time': pl.start_time.strftime('%Y-%m-%d ~ %H:%M:%S') if getattr(pl, 'start_time', None) else None,
+            'stop_time': pl.stop_time.strftime('%Y-%m-%d ~ %H:%M:%S') if getattr(pl, 'stop_time', None) else None,
+            'duration': get_duration(pl.duration) if getattr(pl, 'duration', None) else None,
+            'royalty_amount': float(pl.royalty_amount or 0),
+            'confidence': getattr(pl, 'avg_confidence_score', None),
+            'timestamp': timesince(d.created_at) + ' ago' if d.created_at else 'Just now',
+        })
+
+    data['disputes'] = rows
+    data['pagination'] = {
+        'page_number': page.number,
+        'total_pages': paginator.num_pages,
+        'next': page.next_page_number() if page.has_next() else None,
+        'previous': page.previous_page_number() if page.has_previous() else None,
+        'count': paginator.count,
+        'page_size': page_size,
+    }
+
+    payload['message'] = 'Successful'
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
 def get_match_dispute_analytics_view(request):
     """Return time-series and summary analytics for a given dispute/playlog.
 
@@ -419,29 +495,6 @@ def get_match_dispute_details_view(request):
     data['stop_time'] = dispute.playlog.stop_time.strftime('%Y-%m-%d ~ %H:%M:%S') if getattr(dispute.playlog, 'stop_time', None) else None
     data['avg_confidence_score'] = float(dispute.playlog.avg_confidence_score or 0) if hasattr(dispute.playlog, 'avg_confidence_score') else 0
     data['royalty_amount'] = float(dispute.playlog.royalty_amount or 0) if hasattr(dispute.playlog, 'royalty_amount') else 0
-    
-    # Include individual match hits within the disputed window (if bounds exist)
-    hits = []
-    if getattr(dispute.playlog, 'start_time', None) and getattr(dispute.playlog, 'stop_time', None):
-        hits_qs = (
-            MatchCache.objects
-            .filter(
-                track=track,
-                station=station,
-                matched_at__gte=dispute.playlog.start_time,
-                matched_at__lte=dispute.playlog.stop_time,
-            )
-            .order_by('matched_at')
-            .values('matched_at', 'avg_confidence_score')
-        )
-        hits = [
-            {
-                'matched_at': h['matched_at'].strftime('%Y-%m-%dT%H:%M:%S') if h['matched_at'] else None,
-                'confidence': float(h['avg_confidence_score'] or 0) if h['avg_confidence_score'] is not None else 0,
-            }
-            for h in hits_qs
-        ]
-    data['match_hits'] = hits
 
 
 
@@ -484,9 +537,19 @@ def review_match_for_dispute(request):
         return Response(errors, status=status.HTTP_400_BAD_REQUEST)
     
 
+    # Update dispute status and clear the PlayLog flagged state
     dispute.dispute_status = "Resolved"
     dispute.resolve_comments = comment
     dispute.save()
+
+    try:
+        playlog = dispute.playlog
+        if playlog and playlog.flagged:
+            playlog.flagged = False
+            playlog.save(update_fields=["flagged", "updated_at"])
+    except Exception:
+        # Non-fatal: if we fail to update the playlog flag, still return success for dispute
+        pass
 
     serializer = DisputeSerializer(dispute)
     payload['message'] = 'Successful'

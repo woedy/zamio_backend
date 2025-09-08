@@ -37,7 +37,10 @@ class PublisherProfile(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='publisher')
     
     company_name = models.CharField(max_length=255, null=True, blank=True)
-    bank_account = models.CharField(max_length=100, )
+    # Bank account can be optional during onboarding; allow blank
+    bank_account = models.CharField(max_length=100, blank=True)
+    # Mobile money account (optional)
+    momo_account = models.CharField(max_length=100, blank=True)
     tax_id = models.CharField(max_length=50, blank=True)
 
     verified = models.BooleanField(default=False)
