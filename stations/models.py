@@ -20,6 +20,22 @@ class Station(models.Model):
         ('staff', 'Staff'),
         ('payment', 'Add Payment Info'),
     ]
+    
+    STATION_CLASSES = [
+        ('class_a', 'Class A - Major Metropolitan'),
+        ('class_b', 'Class B - Regional'),
+        ('class_c', 'Class C - Local/Community'),
+        ('online', 'Online Only'),
+        ('community', 'Community/Non-Profit'),
+    ]
+    
+    STATION_TYPES = [
+        ('commercial', 'Commercial'),
+        ('public', 'Public/Educational'),
+        ('community', 'Community'),
+        ('religious', 'Religious'),
+        ('online', 'Online Only'),
+    ]
 
     station_id = models.CharField(max_length=255, blank=True, null=True,  default=uuid.uuid4, unique=True)
 
@@ -32,6 +48,45 @@ class Station(models.Model):
     city = models.CharField(max_length=255, null=True, blank=True)
     region = models.CharField(max_length=255, null=True, blank=True)
     country = models.CharField(max_length=255, null=True, blank=True)
+
+    # Enhanced station classification for royalty calculation
+    station_class = models.CharField(max_length=20, choices=STATION_CLASSES, default='class_c')
+    station_type = models.CharField(max_length=20, choices=STATION_TYPES, default='commercial')
+    license_number = models.CharField(max_length=50, null=True, blank=True, help_text="Broadcasting license number")
+    coverage_area = models.CharField(max_length=100, null=True, blank=True, help_text="Coverage area description")
+    estimated_listeners = models.IntegerField(null=True, blank=True, help_text="Estimated daily listeners")
+    
+    # Compliance and regulatory information
+    regulatory_body = models.CharField(max_length=100, null=True, blank=True, help_text="e.g., GHAMRO, COSGA")
+    compliance_contact_name = models.CharField(max_length=100, null=True, blank=True)
+    compliance_contact_email = models.EmailField(null=True, blank=True)
+    compliance_contact_phone = models.CharField(max_length=20, null=True, blank=True)
+    
+    # Operational details
+    operating_hours_start = models.TimeField(null=True, blank=True)
+    operating_hours_end = models.TimeField(null=True, blank=True)
+    timezone = models.CharField(max_length=50, default='Africa/Accra')
+    website_url = models.URLField(null=True, blank=True)
+    social_media_links = models.JSONField(default=dict, blank=True)
+    
+    # Technical specifications
+    broadcast_frequency = models.CharField(max_length=20, null=True, blank=True, help_text="e.g., 101.5 FM")
+    transmission_power = models.CharField(max_length=50, null=True, blank=True, help_text="e.g., 10kW")
+    
+    # Verification and approval
+    verification_status = models.CharField(
+        max_length=20, 
+        choices=[
+            ('pending', 'Pending Verification'),
+            ('verified', 'Verified'),
+            ('rejected', 'Rejected'),
+            ('suspended', 'Suspended')
+        ], 
+        default='pending'
+    )
+    verified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_stations')
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verification_notes = models.TextField(null=True, blank=True)
 
     bank_account = models.CharField(max_length=100,  null=True, blank=True)
     momo_account = models.CharField(max_length=100,  null=True, blank=True)
@@ -135,16 +190,51 @@ class ProgramStaff(models.Model):
 
 
 class StationStaff(models.Model):
+    STAFF_ROLES = [
+        ('manager', 'Station Manager'),
+        ('producer', 'Producer'),
+        ('presenter', 'Presenter'),
+        ('dj', 'DJ'),
+        ('engineer', 'Sound Engineer'),
+        ('admin', 'Administrator'),
+        ('compliance_officer', 'Compliance Officer'),
+    ]
+    
+    PERMISSION_LEVELS = [
+        ('view', 'View Only'),
+        ('edit', 'Edit'),
+        ('admin', 'Administrator'),
+    ]
+
     station = models.ForeignKey(Station, on_delete=models.CASCADE, related_name='station_staff')
     name = models.CharField(max_length=100)
     email = models.EmailField(null=True, blank=True)
-    role = models.CharField(max_length=50, choices=ROLE_CHOICES)
+    phone = models.CharField(max_length=20, null=True, blank=True)
+    role = models.CharField(max_length=50, choices=STAFF_ROLES, default='presenter')
+    permission_level = models.CharField(max_length=20, choices=PERMISSION_LEVELS, default='view')
+    
+    # Contact and emergency information
+    emergency_contact = models.CharField(max_length=100, null=True, blank=True)
+    emergency_phone = models.CharField(max_length=20, null=True, blank=True)
+    
+    # Employment details
+    hire_date = models.DateField(null=True, blank=True)
+    employee_id = models.CharField(max_length=50, null=True, blank=True)
+    department = models.CharField(max_length=100, null=True, blank=True)
+    
+    # Access control
+    can_upload_playlogs = models.BooleanField(default=False)
+    can_manage_streams = models.BooleanField(default=False)
+    can_view_analytics = models.BooleanField(default=True)
 
     is_archived = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['station', 'email']
 
     def __str__(self):
         return f"{self.name} - {self.role}"

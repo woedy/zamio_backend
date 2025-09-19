@@ -83,7 +83,9 @@ INSTALLED_APPS = [
     "fan",
     #"storages",
     "notifications",
-    "publishers"
+    "publishers",
+    "royalties",
+    "disputes",
 ]
 
 
@@ -93,11 +95,14 @@ AUTH_USER_MODEL = "accounts.User"
 MIDDLEWARE = [
     # CORS should be as high as possible, especially before CommonMiddleware
     "corsheaders.middleware.CorsMiddleware",
+    "accounts.middleware.SecurityHeadersMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "accounts.middleware.RateLimitMiddleware",
+    "accounts.middleware.AuditLoggingMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -134,11 +139,30 @@ if os.environ.get('DATABASE_URL'):
     DATABASES = {
         'default': dj_database_url.parse(os.environ['DATABASE_URL'])
     }
+    
+    # Enhanced PostgreSQL configuration for performance
+    DATABASES['default'].update({
+        'OPTIONS': {
+            'MAX_CONNS': int(os.environ.get('DB_MAX_CONNS', '20')),
+            'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', '600')),  # 10 minutes
+        }
+    })
+    
+    # Read replica configuration for analytics queries
+    if os.environ.get('DATABASE_READ_URL'):
+        DATABASES['read_replica'] = dj_database_url.parse(os.environ['DATABASE_READ_URL'])
+        DATABASES['read_replica']['OPTIONS'] = DATABASES['default']['OPTIONS'].copy()
+        
+        # Database router for read/write splitting
+        DATABASE_ROUTERS = ['core.database_router.DatabaseRouter']
 else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
+            "OPTIONS": {
+                "timeout": 20,  # Increase timeout for SQLite
+            }
         }
     }
 
@@ -190,11 +214,53 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")  # Separate media files
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-# Celery Configuration
+# Enhanced Celery Configuration for Performance
 CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
 CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
+
+# Basic serialization settings
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+# Performance optimizations
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = int(os.environ.get('CELERY_PREFETCH_MULTIPLIER', '1'))
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+
+# Task execution limits
+CELERY_TASK_SOFT_TIME_LIMIT = int(os.environ.get('CELERY_SOFT_TIME_LIMIT', '300'))  # 5 minutes
+CELERY_TASK_TIME_LIMIT = int(os.environ.get('CELERY_TIME_LIMIT', '600'))  # 10 minutes
+
+# Result backend settings
+CELERY_RESULT_EXPIRES = int(os.environ.get('CELERY_RESULT_EXPIRES', '3600'))  # 1 hour
+CELERY_RESULT_PERSISTENT = True
+
+# Monitoring and events
+CELERY_WORKER_SEND_TASK_EVENTS = True
+CELERY_TASK_SEND_SENT_EVENT = True
+
+# Timezone settings
+CELERY_TIMEZONE = 'UTC'
+CELERY_ENABLE_UTC = True
+
+# Queue configuration
+CELERY_TASK_DEFAULT_QUEUE = 'normal'
+CELERY_TASK_DEFAULT_EXCHANGE = 'tasks'
+CELERY_TASK_DEFAULT_EXCHANGE_TYPE = 'direct'
+CELERY_TASK_DEFAULT_ROUTING_KEY = 'normal'
+
+# Broker connection settings
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_CONNECTION_RETRY = True
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 10
+
+# Worker settings
+CELERY_WORKER_CONCURRENCY = int(os.environ.get('CELERY_WORKER_CONCURRENCY', '4'))
+CELERY_WORKER_MAX_TASKS_PER_CHILD = int(os.environ.get('CELERY_MAX_TASKS_PER_CHILD', '1000'))
+
+# Beat scheduler settings
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 from celery import Celery
 
@@ -222,6 +288,59 @@ CORS_ALLOW_CREDENTIALS = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
+# JWT Configuration
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+    'JWK_URL': None,
+    'LEEWAY': 0,
+    
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'user_id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+    
+    'JTI_CLAIM': 'jti',
+    
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
+    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=60),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+}
+
+# REST Framework Configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'accounts.api.custom_jwt.CustomJWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+    'EXCEPTION_HANDLER': 'accounts.api.exception_handlers.custom_exception_handler',
+}
+
+
 
 
 # CACHES = {
@@ -240,4 +359,27 @@ CACHES = {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
     }
+}
+
+# ACRCloud Configuration
+ACRCLOUD_ACCESS_KEY = os.environ.get('ACRCLOUD_ACCESS_KEY', '')
+ACRCLOUD_ACCESS_SECRET = os.environ.get('ACRCLOUD_ACCESS_SECRET', '')
+ACRCLOUD_HOST = os.environ.get('ACRCLOUD_HOST', 'identify-eu-west-1.acrcloud.com')
+ACRCLOUD_REGION = os.environ.get('ACRCLOUD_REGION', 'eu-west-1')
+
+# Audio Detection Configuration
+AUDIO_DETECTION_CONFIG = {
+    'LOCAL_CONFIDENCE_THRESHOLD': float(os.environ.get('LOCAL_CONFIDENCE_THRESHOLD', '0.8')),
+    'ACRCLOUD_CONFIDENCE_THRESHOLD': float(os.environ.get('ACRCLOUD_CONFIDENCE_THRESHOLD', '0.7')),
+    'HYBRID_FALLBACK_ENABLED': os.environ.get('HYBRID_FALLBACK_ENABLED', 'True').lower() == 'true',
+    'MAX_RETRY_ATTEMPTS': int(os.environ.get('MAX_RETRY_ATTEMPTS', '3')),
+    'PROCESSING_TIMEOUT_SECONDS': int(os.environ.get('PROCESSING_TIMEOUT_SECONDS', '30')),
+}
+
+# PRO Integration Configuration
+PRO_INTEGRATION_CONFIG = {
+    'DEFAULT_PRO': os.environ.get('DEFAULT_PRO', 'ghamro'),
+    'RECIPROCAL_AGREEMENTS_ENABLED': os.environ.get('RECIPROCAL_AGREEMENTS_ENABLED', 'True').lower() == 'true',
+    'FOREIGN_PRO_RATE_PERCENTAGE': float(os.environ.get('FOREIGN_PRO_RATE_PERCENTAGE', '15.0')),
+    'LOCAL_PRO_RATE_PERCENTAGE': float(os.environ.get('LOCAL_PRO_RATE_PERCENTAGE', '10.0')),
 }

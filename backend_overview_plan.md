@@ -117,3 +117,27 @@ Deliverables:
 This plan is iterative—update as we learn from data and usage.
 
 — How to use: treat this as the single source of truth for the artist app scope. Keep checkboxes updated in PRs.
+
+## Stream Scans (Server‑Side)
+
+Goal
+- Periodically sample each active station stream URL, decode to PCM, fingerprint and match, and persist results to `MatchCache`/`PlayLog` with confidence and timestamps.
+
+Design
+- Source: `stations.StationStreamLink(active=True)`.
+- Scheduler: Celery Beat triggers `music_monitor.tasks.scan_station_streams` at a safe cadence (e.g., every 1–5 minutes); subtask per active link.
+- Capture: ffmpeg captures 20–30s, mono @ 44.1kHz (or 16kHz) to stdout (WAV/PCM).
+- Decode: librosa loads bytes to samples at target sample rate.
+- Match: `music_monitor.utils.match_engine.simple_match` or `simple_match_mp3` against precomputed fingerprints.
+- Persist: create `MatchCache` with station, matched_at, and avg_confidence_score; optional `PlayLog` when rules met.
+- Resilience: timeouts, error handling, retry with backoff for failing links.
+
+Operational Notes
+- Prefer short Celery tasks over long‑lived threads in web workers.
+- Bound concurrency to avoid CPU/ffmpeg contention; limit active scans per worker.
+- Metrics: scans attempted/succeeded, last match per station, decode/match errors.
+- Idempotency: time‑bucketed windows to avoid double‑count within overlapping captures.
+
+Acceptance
+- Each active link produces periodic captures and writes matches when present.
+- Failures logged with station/link context; no unbounded retries; admin can view latest scan status.

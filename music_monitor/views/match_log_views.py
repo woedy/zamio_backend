@@ -230,12 +230,15 @@ from rest_framework.authentication import TokenAuthentication
 
 from django.utils import timezone
 from django.core.management import call_command
+from django.utils.dateparse import parse_datetime
 
 import librosa
 import tempfile
 import os
+from pathlib import Path
+import ffmpeg
 
-from music_monitor.models import MatchCache
+from music_monitor.models import MatchCache, SnippetIngest
 from stations.models import Station
 from artists.models import Track, Fingerprint
 
@@ -252,6 +255,9 @@ def upload_audio_match(request):
     """
     audio_file = request.FILES.get('file')
     station_id = request.POST.get('station_id')
+    chunk_id = request.POST.get('chunk_id')
+    started_at = request.POST.get('started_at')
+    duration_seconds = request.POST.get('duration_seconds')
 
     if not audio_file:
         return Response({'error': 'No audio file provided'}, status=status.HTTP_400_BAD_REQUEST)
@@ -263,15 +269,52 @@ def upload_audio_match(request):
     except Station.DoesNotExist:
         return Response({'error': 'Invalid station ID'}, status=status.HTTP_404_NOT_FOUND)
 
-    try:
-        # Save file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
-            for chunk in audio_file.chunks():
-                temp_file.write(chunk)
-            temp_path = temp_file.name
+    # Idempotency check/create by chunk_id if provided
+    if chunk_id:
+        parsed_started = parse_datetime(started_at) if started_at else None
+        ingest, created = SnippetIngest.objects.get_or_create(
+            chunk_id=chunk_id,
+            defaults={
+                'station': station,
+                'duration_seconds': int(duration_seconds) if duration_seconds else None,
+                'started_at': parsed_started,
+            }
+        )
+        if not created:
+            return Response({'ok': True, 'already_processed': True, 'chunk_id': chunk_id}, status=status.HTTP_200_OK)
 
-        samples, sr = librosa.load(temp_path, sr=44100)
-        os.remove(temp_path)
+    try:
+        # Save file temporarily, then decode to WAV mono 44.1kHz
+        suffix = Path(getattr(audio_file, 'name', '')).suffix or '.aac'
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_in:
+            for c in audio_file.chunks():
+                temp_in.write(c)
+            temp_in_path = temp_in.name
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_out:
+            temp_out_path = temp_out.name
+
+        try:
+            (
+                ffmpeg
+                .input(temp_in_path)
+                .output(temp_out_path, f='wav', ar=44100, ac=1)
+                .overwrite_output()
+                .run(quiet=True)
+            )
+            samples, sr = librosa.load(temp_out_path, sr=44100)
+        except Exception:
+            # Fallback to original content if decode fails
+            samples, sr = librosa.load(temp_in_path, sr=44100)
+        finally:
+            try:
+                os.remove(temp_in_path)
+            except Exception:
+                pass
+            try:
+                os.remove(temp_out_path)
+            except Exception:
+                pass
 
         if len(samples) == 0:
             return Response({'error': 'Empty audio data'}, status=status.HTTP_400_BAD_REQUEST)
@@ -295,6 +338,11 @@ def upload_audio_match(request):
                 avg_confidence_score=confidence_score,
                 processed=False
             )
+            if chunk_id:
+                try:
+                    SnippetIngest.objects.filter(chunk_id=chunk_id).update(processed=True)
+                except Exception:
+                    pass
 
             # Optional: Trigger match processing right away
             # from django.core.management import call_command

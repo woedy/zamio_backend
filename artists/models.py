@@ -2,6 +2,8 @@ import uuid
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save, pre_save
+from django.core.exceptions import ValidationError
+from django.db.models import Sum
 
 from core.utils import unique_artist_id_generator, unique_contributor_id_generator, unique_track_id_generator
 from fan.models import Fan
@@ -46,7 +48,26 @@ class Artist(models.Model):
     country = models.CharField(max_length=255, null=True, blank=True)
 
     publisher = models.ForeignKey('publishers.PublisherProfile', on_delete=models.SET_NULL, null=True, blank=True, related_name='artist_publishers')
-    self_publish = models.BooleanField(default=False)
+    self_published = models.BooleanField(default=True)  # Auto-set for direct registrations
+    royalty_collection_method = models.CharField(
+        max_length=20, 
+        choices=[
+            ('direct', 'Direct Collection'),
+            ('publisher', 'Through Publisher'),
+            ('pro', 'Through PRO'),
+        ], 
+        default='direct'
+    )
+    publisher_relationship_status = models.CharField(
+        max_length=20, 
+        choices=[
+            ('independent', 'Independent'),
+            ('pending', 'Pending Publisher Approval'),
+            ('signed', 'Signed with Publisher'),
+            ('terminated', 'Terminated Relationship'),
+        ], 
+        default='independent'
+    )
 
     location_name = models.CharField(max_length=900, null=True, blank=True)
     lat = models.DecimalField(default=0.0, max_digits=50, decimal_places=20, null=True, blank=True)
@@ -78,6 +99,33 @@ class Artist(models.Model):
         #elif not self.track_uploaded:
         #    return 'track'
         return 'done'
+    
+    def update_publisher_relationship(self, publisher=None, relationship_type='signed'):
+        """Update artist's publisher relationship and collection method"""
+        if publisher:
+            self.publisher = publisher
+            self.self_published = False
+            self.royalty_collection_method = 'publisher'
+            self.publisher_relationship_status = relationship_type
+        else:
+            self.publisher = None
+            self.self_published = True
+            self.royalty_collection_method = 'direct'
+            self.publisher_relationship_status = 'independent'
+        self.save()
+    
+    def save(self, *args, **kwargs):
+        # Auto-set self_published based on publisher relationship
+        if not self.publisher:
+            self.self_published = True
+            self.royalty_collection_method = 'direct'
+            self.publisher_relationship_status = 'independent'
+        else:
+            self.self_published = False
+            if self.royalty_collection_method == 'direct':
+                self.royalty_collection_method = 'publisher'
+        
+        super().save(*args, **kwargs)
 
     
 
@@ -189,11 +237,43 @@ class Track(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def calculate_royalty(self, duration):
-
         rate_per_second = 0.01  # Example: 1 cent per second
         duration_seconds = duration.total_seconds()
         royalty_amount = duration_seconds * rate_per_second
         return round(royalty_amount, 2)
+    
+    def validate_contributor_splits(self):
+        """Validate that contributor splits total 100%"""
+        is_valid, total = Contributor.validate_track_splits(self)
+        return is_valid, total
+    
+    def get_contributor_splits_summary(self):
+        """Get summary of contributor splits for this track"""
+        contributors = self.contributors.filter(active=True)
+        splits = []
+        total = 0
+        
+        for contributor in contributors:
+            splits.append({
+                'user': contributor.user,
+                'role': contributor.role,
+                'percentage': contributor.percent_split,
+                'publisher': contributor.publisher
+            })
+            total += contributor.percent_split
+        
+        return {
+            'contributors': splits,
+            'total_percentage': total,
+            'is_valid': total == 100
+        }
+    
+    def can_be_published(self):
+        """Check if track can be published (has valid splits and required metadata)"""
+        splits_valid, _ = self.validate_contributor_splits()
+        has_required_metadata = bool(self.title and self.artist and self.audio_file)
+        
+        return splits_valid and has_required_metadata
 
 
 
@@ -239,6 +319,39 @@ class Contributor(models.Model):
         email = getattr(user, 'email', '') if user else ''
         name = (f"{first} {last}".strip() or username or email or "Contributor")
         return f"{name} ({self.role}) on {self.track.title}"
+    
+    def clean(self):
+        """Validate that contributor splits for a track don't exceed 100%"""
+        if self.track_id:
+            # Get total splits for this track excluding current contributor
+            total_splits = Contributor.objects.filter(
+                track=self.track, 
+                active=True
+            ).exclude(id=self.id).aggregate(
+                total=Sum('percent_split')
+            )['total'] or 0
+            
+            # Add current contributor's split
+            total_splits += self.percent_split
+            
+            if total_splits > 100:
+                raise ValidationError(
+                    f'Total contributor splits cannot exceed 100%. Current total: {total_splits}%'
+                )
+    
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def validate_track_splits(cls, track):
+        """Validate that all contributor splits for a track total 100%"""
+        total_splits = cls.objects.filter(
+            track=track, 
+            active=True
+        ).aggregate(total=Sum('percent_split'))['total'] or 0
+        
+        return total_splits == 100, total_splits
 
 
 
@@ -297,18 +410,61 @@ class TrackFeedback(models.Model):
 
 
 class Fingerprint(models.Model):
+    """Enhanced fingerprint model with versioning and processing status"""
+    PROCESSING_STATUS = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
     track = models.ForeignKey(Track, on_delete=models.CASCADE, related_name="fingerprint_track")
-    #hash = models.BinaryField(db_index=True)  # Stores BYTEA in PostgreSQL, BLOB in SQLite
-    hash = models.CharField(max_length=20, db_index=True)
-
+    hash = models.CharField(max_length=64, db_index=True)  # Increased length for better hashes
     offset = models.IntegerField()
+    
+    # Versioning and processing
+    version = models.CharField(max_length=10, default='1.0')
+    algorithm = models.CharField(max_length=50, default='chromaprint')
+    processing_status = models.CharField(max_length=20, choices=PROCESSING_STATUS, default='pending')
+    confidence_score = models.DecimalField(max_digits=5, decimal_places=4, default=1.0)
+    
+    # Enhanced metadata for fingerprint quality and processing details
+    metadata = models.JSONField(default=dict, blank=True, help_text="Enhanced fingerprint metadata including quality metrics")
+    
+    # Legacy metadata fields (kept for backward compatibility)
+    duration_ms = models.IntegerField(null=True, blank=True)
+    sample_rate = models.IntegerField(null=True, blank=True)
+    processing_time_ms = models.IntegerField(null=True, blank=True)
+    error_message = models.TextField(null=True, blank=True)
+    
+    # Timestamps
     date_created = models.DateTimeField(auto_now_add=True)
+    date_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
         indexes = [
-            models.Index(fields=['hash', 'track_id'])
+            models.Index(fields=['hash', 'track_id']),
+            models.Index(fields=['version', 'algorithm']),
+            models.Index(fields=['processing_status']),
         ]
-        unique_together = ('track', 'offset', 'hash')
+        unique_together = ('track', 'offset', 'hash', 'version')
+    
+    def __str__(self):
+        return f"Fingerprint for {self.track.title} (v{self.version})"
+    
+    def mark_completed(self, confidence=1.0, processing_time=None):
+        """Mark fingerprint processing as completed"""
+        self.processing_status = 'completed'
+        self.confidence_score = confidence
+        if processing_time:
+            self.processing_time_ms = processing_time
+        self.save()
+    
+    def mark_failed(self, error_message):
+        """Mark fingerprint processing as failed"""
+        self.processing_status = 'failed'
+        self.error_message = error_message
+        self.save()
 
 
 # Invitation sent by a Publisher to invite an Artist onto the platform

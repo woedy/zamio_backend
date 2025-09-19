@@ -742,3 +742,408 @@ def station_onboarding_status_view(request):
     payload['data'] = data
     return Response(payload, status=status.HTTP_200_OK)
 
+# Enhanced Station Onboarding API Endpoints
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def enhanced_station_onboarding_status_view(request, station_id):
+    """Get enhanced onboarding status for a station"""
+    payload = {}
+    data = {}
+    errors = {}
+
+    try:
+        station = Station.objects.get(station_id=station_id, user=request.user)
+    except Station.DoesNotExist:
+        errors['station_id'] = ['Station not found or access denied.']
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_404_NOT_FOUND)
+
+    # Get user KYC status
+    user = station.user
+    
+    data = {
+        "station_id": station.station_id,
+        "onboarding_step": station.onboarding_step,
+        "profile_completed": station.profile_completed,
+        "staff_completed": station.staff_completed,
+        "payment_info_added": station.payment_info_added,
+        "kyc_status": user.kyc_status,
+        "kyc_documents": user.kyc_documents,
+        "station_name": station.name,
+        "station_class": station.station_class,
+        "station_type": station.station_type,
+        "license_number": station.license_number,
+        "coverage_area": station.coverage_area,
+        "estimated_listeners": station.estimated_listeners,
+        "country": station.country,
+        "region": station.region,
+        "profile_complete_percentage": calculate_station_completion_percentage(station),
+        "next_recommended_step": get_station_next_recommended_step(station),
+        "required_fields": get_station_required_fields_status(station),
+        "compliance_setup": get_station_compliance_status(station),
+        "stream_links": get_station_stream_links(station),
+        "staff_members": get_station_staff_summary(station),
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def update_station_onboarding_status_view(request):
+    """Update specific station onboarding step status"""
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.data.get('station_id', "")
+    step = request.data.get('step', "")
+    completed = request.data.get('completed', False)
+
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+    if not step:
+        errors['step'] = ['Step is required.']
+
+    try:
+        station = Station.objects.get(station_id=station_id, user=request.user)
+    except Station.DoesNotExist:
+        errors['station_id'] = ['Station not found or access denied.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Update the specific step status
+    step_mapping = {
+        'profile': 'profile_completed',
+        'staff': 'staff_completed',
+        'payment': 'payment_info_added',
+    }
+
+    if step in step_mapping:
+        setattr(station, step_mapping[step], completed)
+        if completed:
+            station.onboarding_step = station.get_next_onboarding_step()
+        station.save()
+
+    data = {
+        "station_id": station.station_id,
+        "step": step,
+        "completed": completed,
+        "next_step": station.onboarding_step,
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def complete_station_onboarding_view(request):
+    """Mark station onboarding as complete"""
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.data.get('station_id', "")
+
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+
+    try:
+        station = Station.objects.get(station_id=station_id, user=request.user)
+    except Station.DoesNotExist:
+        errors['station_id'] = ['Station not found or access denied.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Mark onboarding as complete
+    station.onboarding_step = 'done'
+    station.active = True  # Activate the station
+    station.save()
+
+    # Update user profile completion status
+    user = station.user
+    user.profile_complete = True
+    user.save()
+
+    # Create admin notification
+    AllActivity.objects.create(
+        user=user,
+        subject="Station Onboarding Complete",
+        body=f"Station {station.name} has completed onboarding and is now active."
+    )
+
+    data = {
+        "station_id": station.station_id,
+        "onboarding_complete": True,
+        "station_active": station.active,
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def update_station_stream_links_view(request):
+    """Update station stream links with validation"""
+    from stations.models import StationStreamLink
+    import requests
+    
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.data.get('station_id', "")
+    stream_links = request.data.get('stream_links', [])
+
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+
+    try:
+        station = Station.objects.get(station_id=station_id, user=request.user)
+    except Station.DoesNotExist:
+        errors['station_id'] = ['Station not found or access denied.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate and create stream links
+    validated_links = []
+    for link_data in stream_links:
+        link_url = link_data.get('link', '').strip()
+        if not link_url:
+            continue
+            
+        # Basic URL validation
+        if not (link_url.startswith('http://') or link_url.startswith('https://')):
+            errors.setdefault('stream_links', []).append(f'Invalid URL format: {link_url}')
+            continue
+        
+        # Optional: Test connectivity (can be disabled for performance)
+        is_active = True
+        try:
+            response = requests.head(link_url, timeout=5)
+            is_active = response.status_code < 400
+        except:
+            is_active = False
+        
+        validated_links.append({
+            'link': link_url,
+            'active': is_active
+        })
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Clear existing links and create new ones
+    StationStreamLink.objects.filter(station=station).delete()
+    
+    for link_data in validated_links:
+        StationStreamLink.objects.create(
+            station=station,
+            link=link_data['link'],
+            active=link_data['active']
+        )
+
+    data = {
+        "station_id": station.station_id,
+        "stream_links_updated": len(validated_links),
+        "stream_links": validated_links,
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def update_station_compliance_setup_view(request):
+    """Update station compliance and regulatory setup"""
+    payload = {}
+    data = {}
+    errors = {}
+
+    station_id = request.data.get('station_id', "")
+    license_number = request.data.get('license_number', "")
+    station_class = request.data.get('station_class', "")
+    station_type = request.data.get('station_type', "")
+    coverage_area = request.data.get('coverage_area', "")
+    estimated_listeners = request.data.get('estimated_listeners', None)
+    regulatory_bodies = request.data.get('regulatory_bodies', [])
+
+    if not station_id:
+        errors['station_id'] = ['Station ID is required.']
+
+    try:
+        station = Station.objects.get(station_id=station_id, user=request.user)
+    except Station.DoesNotExist:
+        errors['station_id'] = ['Station not found or access denied.']
+
+    # Validate station class and type
+    valid_classes = [choice[0] for choice in Station.STATION_CLASSES]
+    valid_types = [choice[0] for choice in Station.STATION_TYPES]
+    
+    if station_class and station_class not in valid_classes:
+        errors['station_class'] = [f'Invalid station class. Must be one of: {", ".join(valid_classes)}']
+    
+    if station_type and station_type not in valid_types:
+        errors['station_type'] = [f'Invalid station type. Must be one of: {", ".join(valid_types)}']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Update station fields
+    if license_number:
+        station.license_number = license_number
+    if station_class:
+        station.station_class = station_class
+    if station_type:
+        station.station_type = station_type
+    if coverage_area:
+        station.coverage_area = coverage_area
+    if estimated_listeners is not None:
+        try:
+            station.estimated_listeners = int(estimated_listeners)
+        except (ValueError, TypeError):
+            pass
+
+    station.save()
+
+    data = {
+        "station_id": station.station_id,
+        "license_number": station.license_number,
+        "station_class": station.station_class,
+        "station_type": station.station_type,
+        "coverage_area": station.coverage_area,
+        "estimated_listeners": station.estimated_listeners,
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+def calculate_station_completion_percentage(station):
+    """Calculate station profile completion percentage"""
+    total_fields = 3  # profile, staff, payment
+    completed_fields = 0
+
+    if station.profile_completed:
+        completed_fields += 1
+    if station.staff_completed:
+        completed_fields += 1
+    if station.payment_info_added:
+        completed_fields += 1
+
+    return round((completed_fields / total_fields) * 100)
+
+
+def get_station_next_recommended_step(station):
+    """Get the next recommended step for the station"""
+    if not station.profile_completed:
+        return 'profile'
+    elif not station.staff_completed:
+        return 'staff'
+    elif not station.payment_info_added:
+        return 'payment'
+    return 'done'
+
+
+def get_station_required_fields_status(station):
+    """Get status of required fields for station profile completion"""
+    user = station.user
+    
+    return {
+        'basic_info': {
+            'completed': bool(user.first_name and user.last_name and station.name),
+            'fields': ['first_name', 'last_name', 'station_name']
+        },
+        'station_details': {
+            'completed': bool(station.country and station.region and user.photo),
+            'fields': ['country', 'region', 'photo']
+        },
+        'contact_info': {
+            'completed': bool(user.email and user.phone),
+            'fields': ['email', 'phone']
+        },
+        'compliance_info': {
+            'completed': bool(station.license_number and station.station_class and station.station_type),
+            'fields': ['license_number', 'station_class', 'station_type']
+        },
+        'payment_info': {
+            'completed': bool(station.momo_account or station.bank_account),
+            'fields': ['momo_account', 'bank_account']
+        }
+    }
+
+
+def get_station_compliance_status(station):
+    """Get station compliance setup status"""
+    return {
+        'license_number': station.license_number,
+        'station_class': station.station_class,
+        'station_type': station.station_type,
+        'coverage_area': station.coverage_area,
+        'estimated_listeners': station.estimated_listeners,
+        'compliance_complete': bool(
+            station.license_number and 
+            station.station_class and 
+            station.station_type
+        )
+    }
+
+
+def get_station_stream_links(station):
+    """Get station stream links with status"""
+    from stations.models import StationStreamLink
+    
+    links = StationStreamLink.objects.filter(station=station, is_archived=False)
+    return [
+        {
+            'id': link.id,
+            'link': link.link,
+            'active': link.active,
+            'created_at': link.created_at
+        }
+        for link in links
+    ]
+
+
+def get_station_staff_summary(station):
+    """Get station staff summary"""
+    staff_members = StationStaff.objects.filter(station=station, is_archived=False, active=True)
+    return [
+        {
+            'id': staff.id,
+            'name': staff.name,
+            'email': staff.email,
+            'role': staff.role,
+            'created_at': staff.created_at
+        }
+        for staff in staff_members
+    ]

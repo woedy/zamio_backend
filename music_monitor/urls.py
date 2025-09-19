@@ -22,6 +22,24 @@ from music_monitor.views.views import (
     get_matchcache_list,
     get_playlog_list,
 )
+from music_monitor.views.enhanced_fingerprinting_views import (
+    fingerprint_track,
+    batch_fingerprint_tracks,
+    fingerprint_task_status,
+    fingerprint_statistics,
+    auto_fingerprint_new,
+    track_fingerprint_status,
+)
+from music_monitor.views.acrcloud_views import (
+    test_acrcloud_identification,
+    test_hybrid_detection,
+    lookup_isrc,
+    batch_lookup_isrcs,
+    get_pro_mappings,
+    get_detection_statistics,
+    trigger_isrc_update,
+    trigger_hybrid_detection_task,
+)
 
 
 app_name = "music_monitor"
@@ -57,4 +75,22 @@ urlpatterns = [
     path("disputes/", get_all_disputes_admin_view, name="get_all_disputes_admin_view"),
     path("match-dispute-details/", get_match_dispute_details_view, name="get_match_dispute_details_view"),
     path("review-match-for-dispute/", review_match_for_dispute, name="review_match_for_dispute"),
+    
+    # Enhanced Fingerprinting Endpoints
+    path("fingerprint/track/", fingerprint_track, name="fingerprint_track"),
+    path("fingerprint/batch/", batch_fingerprint_tracks, name="batch_fingerprint_tracks"),
+    path("fingerprint/task/<str:task_id>/", fingerprint_task_status, name="fingerprint_task_status"),
+    path("fingerprint/stats/", fingerprint_statistics, name="fingerprint_statistics"),
+    path("fingerprint/auto/", auto_fingerprint_new, name="auto_fingerprint_new"),
+    path("fingerprint/track/<int:track_id>/status/", track_fingerprint_status, name="track_fingerprint_status"),
+    
+    # ACRCloud Integration Endpoints
+    path("acrcloud/test-identification/", test_acrcloud_identification, name="test_acrcloud_identification"),
+    path("acrcloud/test-hybrid/", test_hybrid_detection, name="test_hybrid_detection"),
+    path("acrcloud/isrc/<str:isrc>/", lookup_isrc, name="lookup_isrc"),
+    path("acrcloud/batch-isrc/", batch_lookup_isrcs, name="batch_lookup_isrcs"),
+    path("acrcloud/pro-mappings/", get_pro_mappings, name="get_pro_mappings"),
+    path("acrcloud/statistics/", get_detection_statistics, name="get_detection_statistics"),
+    path("acrcloud/update-isrc/<str:isrc>/", trigger_isrc_update, name="trigger_isrc_update"),
+    path("acrcloud/hybrid-task/", trigger_hybrid_detection_task, name="trigger_hybrid_detection_task"),
 ]

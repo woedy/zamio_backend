@@ -852,3 +852,294 @@ def logout_publisher_view(request):
     payload['data'] = data
     return Response(payload)
 
+
+# Enhanced Publisher Onboarding API Endpoints
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def publisher_onboarding_status_view(request, publisher_id):
+    """Get current onboarding status for a publisher"""
+    payload = {}
+    data = {}
+    errors = {}
+
+    try:
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id, user=request.user)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['Publisher not found or access denied.']
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_404_NOT_FOUND)
+
+    # Get user KYC status
+    user = publisher.user
+    
+    data = {
+        "publisher_id": publisher.publisher_id,
+        "onboarding_step": publisher.onboarding_step,
+        "profile_completed": publisher.profile_completed,
+        "revenue_split_completed": publisher.revenue_split_completed,
+        "link_artist_completed": publisher.link_artist_completed,
+        "payment_info_added": publisher.payment_info_added,
+        "kyc_status": user.kyc_status,
+        "kyc_documents": user.kyc_documents,
+        "company_name": publisher.company_name,
+        "country": publisher.country,
+        "region": publisher.region,
+        "writer_split": publisher.writer_split,
+        "publisher_split": publisher.publisher_split,
+        "profile_complete_percentage": calculate_publisher_completion_percentage(publisher),
+        "next_recommended_step": get_publisher_next_recommended_step(publisher),
+        "required_fields": get_publisher_required_fields_status(publisher),
+        "admin_approval_required": True,  # Publishers require admin approval
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def update_publisher_onboarding_status_view(request):
+    """Update specific publisher onboarding step status"""
+    payload = {}
+    data = {}
+    errors = {}
+
+    publisher_id = request.data.get('publisher_id', "")
+    step = request.data.get('step', "")
+    completed = request.data.get('completed', False)
+
+    if not publisher_id:
+        errors['publisher_id'] = ['Publisher ID is required.']
+    if not step:
+        errors['step'] = ['Step is required.']
+
+    try:
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id, user=request.user)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['Publisher not found or access denied.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Update the specific step status
+    step_mapping = {
+        'profile': 'profile_completed',
+        'revenue-split': 'revenue_split_completed',
+        'link-artist': 'link_artist_completed',
+        'payment': 'payment_info_added',
+    }
+
+    if step in step_mapping:
+        setattr(publisher, step_mapping[step], completed)
+        if completed:
+            publisher.onboarding_step = publisher.get_next_onboarding_step()
+        publisher.save()
+
+    data = {
+        "publisher_id": publisher.publisher_id,
+        "step": step,
+        "completed": completed,
+        "next_step": publisher.onboarding_step,
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def complete_publisher_onboarding_view(request):
+    """Mark publisher onboarding as complete (requires admin approval)"""
+    payload = {}
+    data = {}
+    errors = {}
+
+    publisher_id = request.data.get('publisher_id', "")
+
+    if not publisher_id:
+        errors['publisher_id'] = ['Publisher ID is required.']
+
+    try:
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id, user=request.user)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['Publisher not found or access denied.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Mark onboarding as complete (pending admin approval)
+    publisher.onboarding_step = 'done'
+    publisher.save()
+
+    # Update user profile completion status
+    user = publisher.user
+    user.profile_complete = True
+    user.save()
+
+    # Create admin notification for approval
+    AllActivity.objects.create(
+        user=user,
+        subject="Publisher Onboarding Complete",
+        body=f"Publisher {publisher.company_name} has completed onboarding and requires admin approval."
+    )
+
+    data = {
+        "publisher_id": publisher.publisher_id,
+        "onboarding_complete": True,
+        "admin_approval_required": True,
+        "status": "pending_approval",
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def create_artist_relationship_view(request):
+    """Create a publisher-artist relationship"""
+    from publishers.models import PublisherArtistRelationship
+    from artists.models import Artist
+    from django.utils import timezone
+    
+    payload = {}
+    data = {}
+    errors = {}
+
+    publisher_id = request.data.get('publisher_id', "")
+    artist_id = request.data.get('artist_id', "")
+    relationship_type = request.data.get('relationship_type', 'exclusive')
+    royalty_split_percentage = request.data.get('royalty_split_percentage', 50)
+    territory = request.data.get('territory', 'Ghana')
+    start_date = request.data.get('start_date', timezone.now().date())
+
+    if not publisher_id:
+        errors['publisher_id'] = ['Publisher ID is required.']
+    if not artist_id:
+        errors['artist_id'] = ['Artist ID is required.']
+
+    try:
+        publisher = PublisherProfile.objects.get(publisher_id=publisher_id, user=request.user)
+    except PublisherProfile.DoesNotExist:
+        errors['publisher_id'] = ['Publisher not found or access denied.']
+
+    try:
+        artist = Artist.objects.get(artist_id=artist_id)
+    except Artist.DoesNotExist:
+        errors['artist_id'] = ['Artist not found.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check if relationship already exists
+    existing_relationship = PublisherArtistRelationship.objects.filter(
+        publisher=publisher,
+        artist=artist,
+        territory=territory,
+        status__in=['active', 'pending']
+    ).first()
+
+    if existing_relationship:
+        errors['relationship'] = ['A relationship already exists between this publisher and artist in this territory.']
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Create the relationship
+    relationship = PublisherArtistRelationship.objects.create(
+        publisher=publisher,
+        artist=artist,
+        relationship_type=relationship_type,
+        royalty_split_percentage=royalty_split_percentage,
+        territory=territory,
+        start_date=start_date,
+        created_by=request.user,
+        status='pending'
+    )
+
+    data = {
+        "relationship_id": relationship.id,
+        "publisher_id": publisher.publisher_id,
+        "artist_id": artist.artist_id,
+        "relationship_type": relationship_type,
+        "royalty_split_percentage": royalty_split_percentage,
+        "territory": territory,
+        "status": "pending",
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+def calculate_publisher_completion_percentage(publisher):
+    """Calculate publisher profile completion percentage"""
+    total_fields = 4  # profile, revenue-split, link-artist, payment
+    completed_fields = 0
+
+    if publisher.profile_completed:
+        completed_fields += 1
+    if publisher.revenue_split_completed:
+        completed_fields += 1
+    if publisher.link_artist_completed:
+        completed_fields += 1
+    if publisher.payment_info_added:
+        completed_fields += 1
+
+    return round((completed_fields / total_fields) * 100)
+
+
+def get_publisher_next_recommended_step(publisher):
+    """Get the next recommended step for the publisher"""
+    if not publisher.profile_completed:
+        return 'profile'
+    elif not publisher.revenue_split_completed:
+        return 'revenue-split'
+    elif not publisher.link_artist_completed:
+        return 'link-artist'
+    elif not publisher.payment_info_added:
+        return 'payment'
+    return 'done'
+
+
+def get_publisher_required_fields_status(publisher):
+    """Get status of required fields for publisher profile completion"""
+    user = publisher.user
+    
+    return {
+        'basic_info': {
+            'completed': bool(user.first_name and user.last_name and publisher.company_name),
+            'fields': ['first_name', 'last_name', 'company_name']
+        },
+        'company_details': {
+            'completed': bool(publisher.country and user.photo),
+            'fields': ['country', 'photo']
+        },
+        'contact_info': {
+            'completed': bool(user.email and user.phone),
+            'fields': ['email', 'phone']
+        },
+        'revenue_split': {
+            'completed': bool(publisher.writer_split and publisher.publisher_split),
+            'fields': ['writer_split', 'publisher_split']
+        },
+        'payment_info': {
+            'completed': bool(publisher.momo_account or publisher.bank_account),
+            'fields': ['momo_account', 'bank_account']
+        }
+    }

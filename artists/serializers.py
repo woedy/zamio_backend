@@ -106,10 +106,12 @@ class ArtistPlayLogSerializer(serializers.ModelSerializer):
     start_time = serializers.SerializerMethodField()
     stop_time = serializers.SerializerMethodField()
     duration = serializers.SerializerMethodField()
+    attribution_source = serializers.SerializerMethodField()
+    partner_name = serializers.SerializerMethodField()
 
     class Meta:
         model = PlayLog
-        fields = ['id', 'track_title', 'station_name', 'start_time', 'stop_time', 'duration', 'royalty_amount']
+        fields = ['id', 'track_title', 'station_name', 'start_time', 'stop_time', 'duration', 'royalty_amount', 'attribution_source', 'partner_name']
 
 
     def get_start_time(self, obj):
@@ -125,6 +127,26 @@ class ArtistPlayLogSerializer(serializers.ModelSerializer):
         hours, remainder = divmod(total_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
         return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+    def get_attribution_source(self, obj):
+        try:
+            from royalties.models import UsageAttribution
+        except Exception:
+            return "Local"
+        if UsageAttribution.objects.filter(play_log=obj).exists():
+            return "Partner"
+        return "Local"
+
+    def get_partner_name(self, obj):
+        try:
+            from royalties.models import UsageAttribution
+        except Exception:
+            return None
+        ua = UsageAttribution.objects.filter(play_log=obj).select_related('origin_partner').first()
+        if ua and ua.origin_partner:
+            # Prefer display_name then company_name
+            return ua.origin_partner.display_name or ua.origin_partner.company_name
+        return None
 
 
 class ArtistMatchCacheSerializer(serializers.ModelSerializer):

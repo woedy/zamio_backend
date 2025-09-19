@@ -1,5 +1,7 @@
 # Backend Checklist
 
+See also: [TestPlanOrder.md](../TestPlanOrder.md) for the cross-repo visual test flow and backend acceptance checks.
+
 This checklist tracks the core backend features across modules. We’ll mark items [x] as we implement/verify them. Keep this file updated as work progresses.
 
 ## 1) users (Authentication & Core Profiles)
@@ -34,7 +36,7 @@ This checklist tracks the core backend features across modules. We’ll mark ite
 - [x] Matcher engine (clip + streaming)
 - [x] Radio snippet processor (ffmpeg capture)
 - [~] Match confidence score storage (avg_confidence_score on MatchCache)
-- [ ] Scheduled tasks (Celery Beat for periodic stream scans)
+- [x] Scheduled tasks (Celery Beat for periodic stream scans)
 
 ## 6) detections (Match Logs & Airplay Events)
 - [x] Match log model (MatchCache)
@@ -65,7 +67,13 @@ This checklist tracks the core backend features across modules. We’ll mark ite
 - [ ] Fan favorites/likes
 - [ ] Recommender-ready models (listens/skips/replays)
 
-## 10) core/common (Shared Services)
+## 10) stream capture (Station Online Streams)
+- [~] Stream ingestion service configured for station stream URLs
+- [~] Periodic sampling → fingerprint & match pipeline
+- [ ] Health/metrics: last sample time, error rate per station
+- [ ] Admin controls to enable/disable per station
+
+## 11) core/common (Shared Services)
 - [~] Notification app scaffold (email configured; SMS pending)
 - [x] Email backend (file/email; env-configurable)
 - [ ] SMS service integration
@@ -79,5 +87,6 @@ This checklist tracks the core backend features across modules. We’ll mark ite
 - [ ] Deployment profiles (env-based, prod safe defaults)
 - [ ] Observability (structured logging, error tracking)
 - [ ] Data migrations for schema changes (fingerprint storage)
+- [ ] Default TIME_ZONE set to `Africa/Accra`; currency fields default `GHS`
 
 Legend: [x]=done, [~]=partial/in-progress, [ ]=pending

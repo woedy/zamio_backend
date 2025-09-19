@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from music_monitor.models import MatchCache, PlayLog, Dispute
-from .models import Station, StationProgram, ProgramStaff
+from .models import Station, StationProgram, ProgramStaff, StationStaff
 
 # Station Serializer
 class AllStationSerializer(serializers.ModelSerializer):
@@ -11,9 +11,18 @@ class AllStationSerializer(serializers.ModelSerializer):
 
 
 class StationDetailsSerializer(serializers.ModelSerializer):
+    staff_count = serializers.SerializerMethodField()
+    stream_links_count = serializers.SerializerMethodField()
+    
     class Meta:
         model = Station
         fields = '__all__'
+    
+    def get_staff_count(self, obj):
+        return obj.station_staff.filter(is_archived=False, active=True).count()
+    
+    def get_stream_links_count(self, obj):
+        return obj.station_links.filter(is_archived=False, active=True).count()
 
 
 
@@ -98,3 +107,37 @@ class StationMatchCacheSerializer(serializers.ModelSerializer):
 
     def get_matched_at(self, obj):
         return obj.matched_at.strftime('%Y-%m-%d ~ %H:%M:%S')
+
+
+class StationStaffSerializer(serializers.ModelSerializer):
+    station_name = serializers.CharField(source='station.name', read_only=True)
+    
+    class Meta:
+        model = StationStaff
+        fields = [
+            'id', 'name', 'email', 'phone', 'role', 'permission_level',
+            'emergency_contact', 'emergency_phone', 'hire_date', 'employee_id',
+            'department', 'can_upload_playlogs', 'can_manage_streams', 
+            'can_view_analytics', 'active', 'station_name', 'created_at'
+        ]
+
+
+class StationStaffDetailsSerializer(serializers.ModelSerializer):
+    station_name = serializers.CharField(source='station.name', read_only=True)
+    
+    class Meta:
+        model = StationStaff
+        fields = '__all__'
+
+
+class StationComplianceSerializer(serializers.ModelSerializer):
+    """Serializer for compliance-related station information"""
+    
+    class Meta:
+        model = Station
+        fields = [
+            'station_id', 'name', 'regulatory_body', 'compliance_contact_name',
+            'compliance_contact_email', 'compliance_contact_phone', 'license_number',
+            'verification_status', 'verified_at', 'verification_notes',
+            'station_class', 'station_type', 'coverage_area', 'estimated_listeners'
+        ]

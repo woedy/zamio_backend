@@ -11,6 +11,26 @@ from stations.views.station_stream_links_views import (
     edit_station_stream_link_view,
     delete_station_stream_link_view,
 )
+from stations.views.station_staff_views import (
+    add_station_staff,
+    get_station_staff_list,
+    get_station_staff_details,
+    edit_station_staff,
+    archive_station_staff,
+    activate_station_staff,
+)
+from stations.views.station_compliance_views import (
+    update_station_compliance,
+    get_stations_for_verification,
+    verify_station,
+    get_station_compliance_report,
+)
+from stations.views.playlog_management_views import (
+    upload_playlog,
+    get_playlog_comparison,
+    get_match_log_details,
+    verify_detection_match,
+)
 from . import views
 
 app_name = "stations"
@@ -54,5 +74,25 @@ urlpatterns = [
     path('add-station-stream-link/', add_station_stream_link_view, name='add_station_stream_link_view'),
     path('edit-station-stream-link/', edit_station_stream_link_view, name='edit_station_stream_link_view'),
     path('delete-station-stream-link/', delete_station_stream_link_view, name='delete_station_stream_link_view'),
+
+    # Station Staff Management
+    path('add-station-staff/', add_station_staff, name='add_station_staff'),
+    path('get-station-staff-list/', get_station_staff_list, name='get_station_staff_list'),
+    path('get-station-staff-details/', get_station_staff_details, name='get_station_staff_details'),
+    path('edit-station-staff/', edit_station_staff, name='edit_station_staff'),
+    path('archive-station-staff/', archive_station_staff, name='archive_station_staff'),
+    path('activate-station-staff/', activate_station_staff, name='activate_station_staff'),
+
+    # Station Compliance and Verification
+    path('update-station-compliance/', update_station_compliance, name='update_station_compliance'),
+    path('get-stations-for-verification/', get_stations_for_verification, name='get_stations_for_verification'),
+    path('verify-station/', verify_station, name='verify_station'),
+    path('get-station-compliance-report/', get_station_compliance_report, name='get_station_compliance_report'),
+
+    # Playlog and Match Log Management
+    path('upload-playlog/', upload_playlog, name='upload_playlog'),
+    path('get-playlog-comparison/', get_playlog_comparison, name='get_playlog_comparison'),
+    path('get-match-log-details/', get_match_log_details, name='get_match_log_details'),
+    path('verify-detection-match/', verify_detection_match, name='verify_detection_match'),
 
 ]

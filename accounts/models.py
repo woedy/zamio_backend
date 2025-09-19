@@ -1,11 +1,13 @@
 import os
 import random
+import uuid
 from django.conf import settings
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.db import models
 from django.db.models import Q
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
+from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
 from core.utils import unique_user_id_generator
@@ -94,15 +96,22 @@ USER_TYPE = (
     ('Artist', 'Artist'),
     ('Station', 'Station'),
     ('Admin', 'Admin'),
-    ('Fan', 'Fan'),
+    #('Fan', 'Fan'),
     ('Publisher', 'Publisher'),
     ('contributor', 'contributor'),
 
 )
 
+KYC_STATUS_CHOICES = (
+    ('pending', 'Pending'),
+    ('verified', 'Verified'),
+    ('rejected', 'Rejected'),
+    ('incomplete', 'Incomplete'),
+)
+
 
 class User(AbstractBaseUser):
-    user_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    user_id = models.UUIDField(blank=True, null=True, unique=True)
     email = models.EmailField(max_length=255, unique=True)
     username = models.CharField(max_length=255, blank=True, null=True, unique=True)
     first_name = models.CharField(max_length=255, blank=True, null=True)
@@ -113,6 +122,15 @@ class User(AbstractBaseUser):
     phone = models.CharField(max_length=255, null=True, blank=True)
 
     user_type = models.CharField(max_length=100, choices=USER_TYPE, blank=True, null=True)
+    
+    # Enhanced authentication fields
+    kyc_status = models.CharField(max_length=20, choices=KYC_STATUS_CHOICES, default='pending')
+    kyc_documents = models.JSONField(default=dict, blank=True)
+    two_factor_enabled = models.BooleanField(default=False)
+    two_factor_secret = models.CharField(max_length=32, blank=True, null=True)
+    last_activity = models.DateTimeField(auto_now=True)
+    failed_login_attempts = models.IntegerField(default=0)
+    account_locked_until = models.DateTimeField(null=True, blank=True)
     
     fcm_token = models.TextField(blank=True, null=True)
     otp_code = models.CharField(max_length=10, blank=True, null=True)
@@ -177,11 +195,11 @@ def create_auth_token(sender, instance=None, created=False, **kwargs):
         Token.objects.create(user=instance)
 
 
-def pre_save_user_id_receiver(sender, instance, *args, **kwargs):
-    if not instance.user_id:
-        instance.user_id = unique_user_id_generator(instance)
-
-pre_save.connect(pre_save_user_id_receiver, sender=User)
+#def pre_save_user_id_receiver(sender, instance, *args, **kwargs):
+#    if not instance.user_id:
+#        instance.user_id = unique_user_id_generator(instance)
+#
+#pre_save.connect(pre_save_user_id_receiver, sender=User)
 
 
 
@@ -199,3 +217,49 @@ class UserEmergencyContact(AbstractBaseUser):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_emergency_contacts')
     phone_number = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class UserPermission(models.Model):
+    """Granular permission management for users"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_permissions')
+    permission = models.CharField(max_length=100)
+    granted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='granted_permissions')
+    granted_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        unique_together = ('user', 'permission')
+        indexes = [
+            models.Index(fields=['user', 'permission']),
+            models.Index(fields=['permission']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.email} - {self.permission}"
+
+
+class AuditLog(models.Model):
+    """Comprehensive audit logging for all user actions and system events"""
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=100)
+    resource_type = models.CharField(max_length=50, null=True, blank=True)
+    resource_id = models.CharField(max_length=100, null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(null=True, blank=True)
+    request_data = models.JSONField(default=dict, blank=True)
+    response_data = models.JSONField(default=dict, blank=True)
+    status_code = models.IntegerField(null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    trace_id = models.UUIDField(null=True, blank=True)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'timestamp']),
+            models.Index(fields=['action', 'timestamp']),
+            models.Index(fields=['resource_type', 'resource_id']),
+            models.Index(fields=['trace_id']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.email if self.user else 'System'} - {self.action} at {self.timestamp}"

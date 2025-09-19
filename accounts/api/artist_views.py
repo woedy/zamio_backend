@@ -359,6 +359,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.response import Response
 from rest_framework import status
+import json
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -728,3 +729,328 @@ def logout_artist_view(request):
 
 
 
+
+
+# Enhanced Artist Onboarding API Endpoints
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def artist_onboarding_status_view(request, artist_id):
+    """Get current onboarding status for an artist"""
+    payload = {}
+    data = {}
+    errors = {}
+
+    try:
+        artist = Artist.objects.get(artist_id=artist_id, user=request.user)
+    except Artist.DoesNotExist:
+        errors['artist_id'] = ['Artist not found or access denied.']
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_404_NOT_FOUND)
+
+    # Get user KYC status
+    user = artist.user
+    
+    data = {
+        "artist_id": artist.artist_id,
+        "onboarding_step": artist.onboarding_step,
+        "profile_completed": artist.profile_completed,
+        "social_media_added": artist.social_media_added,
+        "payment_info_added": artist.payment_info_added,
+        "publisher_added": artist.publisher_added,
+        "track_uploaded": artist.track_uploaded,
+        "kyc_status": user.kyc_status,
+        "kyc_documents": user.kyc_documents,
+        "self_published": artist.self_published,
+        "publisher_relationship_status": artist.publisher_relationship_status,
+        "royalty_collection_method": artist.royalty_collection_method,
+        "profile_complete_percentage": calculate_profile_completion_percentage(artist),
+        "next_recommended_step": get_next_recommended_step(artist),
+        "required_fields": get_required_fields_status(artist),
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def update_onboarding_status_view(request):
+    """Update specific onboarding step status"""
+    payload = {}
+    data = {}
+    errors = {}
+
+    artist_id = request.data.get('artist_id', "")
+    step = request.data.get('step', "")
+    completed = request.data.get('completed', False)
+
+    if not artist_id:
+        errors['artist_id'] = ['Artist ID is required.']
+    if not step:
+        errors['step'] = ['Step is required.']
+
+    try:
+        artist = Artist.objects.get(artist_id=artist_id, user=request.user)
+    except Artist.DoesNotExist:
+        errors['artist_id'] = ['Artist not found or access denied.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Update the specific step status
+    step_mapping = {
+        'profile': 'profile_completed',
+        'social-media': 'social_media_added',
+        'payment': 'payment_info_added',
+        'publisher': 'publisher_added',
+        'track': 'track_uploaded',
+    }
+
+    if step in step_mapping:
+        setattr(artist, step_mapping[step], completed)
+        if completed:
+            artist.onboarding_step = artist.get_next_onboarding_step()
+        artist.save()
+
+    data = {
+        "artist_id": artist.artist_id,
+        "step": step,
+        "completed": completed,
+        "next_step": artist.onboarding_step,
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def complete_artist_onboarding_view(request):
+    """Mark artist onboarding as complete and set self-published status"""
+    payload = {}
+    data = {}
+    errors = {}
+
+    artist_id = request.data.get('artist_id', "")
+
+    if not artist_id:
+        errors['artist_id'] = ['Artist ID is required.']
+
+    try:
+        artist = Artist.objects.get(artist_id=artist_id, user=request.user)
+    except Artist.DoesNotExist:
+        errors['artist_id'] = ['Artist not found or access denied.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Mark onboarding as complete
+    artist.onboarding_step = 'done'
+    
+    # Ensure self-published status is set correctly
+    if not artist.publisher:
+        artist.self_published = True
+        artist.royalty_collection_method = 'direct'
+        artist.publisher_relationship_status = 'independent'
+    
+    artist.save()
+
+    # Update user profile completion status
+    user = artist.user
+    user.profile_complete = True
+    user.save()
+
+    data = {
+        "artist_id": artist.artist_id,
+        "onboarding_complete": True,
+        "self_published": artist.self_published,
+        "royalty_collection_method": artist.royalty_collection_method,
+        "publisher_relationship_status": artist.publisher_relationship_status,
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def set_self_published_status_view(request):
+    """Explicitly set artist self-published status"""
+    payload = {}
+    data = {}
+    errors = {}
+
+    artist_id = request.data.get('artist_id', "")
+    self_published = request.data.get('self_published', True)
+
+    if not artist_id:
+        errors['artist_id'] = ['Artist ID is required.']
+
+    try:
+        artist = Artist.objects.get(artist_id=artist_id, user=request.user)
+    except Artist.DoesNotExist:
+        errors['artist_id'] = ['Artist not found or access denied.']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Update self-published status and related fields
+    artist.update_publisher_relationship(
+        publisher=None if self_published else artist.publisher,
+        relationship_type='independent' if self_published else 'signed'
+    )
+
+    data = {
+        "artist_id": artist.artist_id,
+        "self_published": artist.self_published,
+        "royalty_collection_method": artist.royalty_collection_method,
+        "publisher_relationship_status": artist.publisher_relationship_status,
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+def upload_kyc_documents_view(request):
+    """Upload KYC documents for verification"""
+    from django.utils import timezone
+    
+    payload = {}
+    data = {}
+    errors = {}
+
+    user = request.user
+    document_type = request.data.get('document_type', '')
+    document_file = request.FILES.get('document_file')
+
+    if not document_type:
+        errors['document_type'] = ['Document type is required.']
+    if not document_file:
+        errors['document_file'] = ['Document file is required.']
+
+    valid_document_types = ['id_card', 'passport', 'drivers_license', 'utility_bill', 'bank_statement']
+    if document_type not in valid_document_types:
+        errors['document_type'] = [f'Invalid document type. Must be one of: {", ".join(valid_document_types)}']
+
+    if errors:
+        payload['message'] = "Errors"
+        payload['errors'] = errors
+        return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+    # Initialize kyc_documents if not exists
+    if not user.kyc_documents:
+        user.kyc_documents = {}
+
+    # Store document information
+    user.kyc_documents[document_type] = {
+        'filename': document_file.name,
+        'size': document_file.size,
+        'uploaded_at': timezone.now().isoformat(),
+        'status': 'uploaded'
+    }
+
+    # Update KYC status
+    if user.kyc_status == 'pending':
+        user.kyc_status = 'incomplete'
+
+    user.save()
+
+    # Here you would typically save the file to storage
+    # For now, we'll just track the metadata
+
+    data = {
+        "document_type": document_type,
+        "status": "uploaded",
+        "kyc_status": user.kyc_status,
+        "kyc_documents": user.kyc_documents,
+    }
+
+    payload['message'] = "Successful"
+    payload['data'] = data
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+def calculate_profile_completion_percentage(artist):
+    """Calculate profile completion percentage"""
+    total_fields = 6  # profile, social, payment, publisher, kyc, track
+    completed_fields = 0
+
+    if artist.profile_completed:
+        completed_fields += 1
+    if artist.social_media_added:
+        completed_fields += 1
+    if artist.payment_info_added:
+        completed_fields += 1
+    if artist.publisher_added or artist.self_published:
+        completed_fields += 1
+    if artist.user.kyc_status in ['verified', 'uploaded']:
+        completed_fields += 1
+    if artist.track_uploaded:
+        completed_fields += 1
+
+    return round((completed_fields / total_fields) * 100)
+
+
+def get_next_recommended_step(artist):
+    """Get the next recommended step for the artist"""
+    if not artist.profile_completed:
+        return 'profile'
+    elif artist.user.kyc_status == 'pending':
+        return 'kyc'
+    elif not artist.social_media_added:
+        return 'social-media'
+    elif not artist.payment_info_added:
+        return 'payment'
+    elif not artist.publisher_added and not artist.self_published:
+        return 'publisher'
+    elif not artist.track_uploaded:
+        return 'track'
+    return 'done'
+
+
+def get_required_fields_status(artist):
+    """Get status of required fields for profile completion"""
+    user = artist.user
+    
+    return {
+        'basic_info': {
+            'completed': bool(user.first_name and user.last_name and artist.stage_name),
+            'fields': ['first_name', 'last_name', 'stage_name']
+        },
+        'profile_details': {
+            'completed': bool(artist.bio and artist.country and user.photo),
+            'fields': ['bio', 'country', 'photo']
+        },
+        'contact_info': {
+            'completed': bool(user.email and user.phone),
+            'fields': ['email', 'phone']
+        },
+        'kyc_verification': {
+            'completed': user.kyc_status in ['verified', 'uploaded'],
+            'status': user.kyc_status,
+            'required_documents': ['id_card', 'utility_bill']
+        },
+        'payment_info': {
+            'completed': bool(artist.momo_account or artist.bank_account),
+            'fields': ['momo_account', 'bank_account']
+        }
+    }
